@@ -2628,6 +2628,16 @@ async function handleDingTalkMessage(params: {
     }
   }
 
+  // ===== Group Policy 检查 =====
+  if (!isDirect) {
+    const groupPolicy = dingtalkConfig.groupPolicy || 'open';
+    const allowFrom: string[] = dingtalkConfig.allowFrom || [];
+    if (groupPolicy === 'allowlist' && allowFrom.length > 0 && !allowFrom.includes(senderId)) {
+      log?.warn?.(`[DingTalk] 群聊消息被拦截: senderId=${senderId} 不在 allowFrom 白名单中`);
+      return;
+    }
+  }
+
   // 构建 OpenClaw 标准会话上下文
   // 兼容旧配置：sessionTimeout 已废弃，打印警告
   if (dingtalkConfig.sessionTimeout !== undefined) {
@@ -2792,16 +2802,21 @@ async function handleDingTalkMessage(params: {
     : { openConversationId: data.conversationId };
 
   if (asyncMode) {
-    const ackText = dingtalkConfig.ackText || '🫡 任务已接收，处理中...';
-    try {
-      await sendProactive(dingtalkConfig, proactiveTarget, ackText, {
-        msgType: 'text',
-        useAICard: false,
-        fallbackToNormal: true,
-        log,
-      });
-    } catch (ackErr: any) {
-      log?.warn?.(`[DingTalk][Async] 回执发送失败: ${ackErr?.message || ackErr}`);
+    // 允许通过 ackText: '' 显式关闭异步回执；仅在未配置（null/undefined）时回退到默认文案
+    const ackText = dingtalkConfig.ackText ?? '🫡 任务已接收，处理中...';
+    if (typeof ackText === 'string' && ackText.trim().length > 0) {
+      try {
+        await sendProactive(dingtalkConfig, proactiveTarget, ackText, {
+          msgType: 'text',
+          useAICard: false,
+          fallbackToNormal: true,
+          log,
+        });
+      } catch (ackErr: any) {
+        log?.warn?.(`[DingTalk][Async] 回执发送失败: ${ackErr?.message || ackErr}`);
+      }
+    } else {
+      log?.info?.('[DingTalk][Async] ackText 为空，跳过异步回执发送');
     }
 
     // 计算 peerKind 和 peerId 用于 bindings 匹配
@@ -3418,6 +3433,14 @@ const dingtalkPlugin = {
       policy: account.config?.dmPolicy || 'open',
       allowFrom: account.config?.allowFrom || [],
       policyPath: 'channels.dingtalk-connector.dmPolicy',
+      allowFromPath: 'channels.dingtalk-connector.allowFrom',
+      approveHint: '使用 /allow dingtalk-connector:<userId> 批准用户',
+      normalizeEntry: (raw: string) => raw.replace(/^(dingtalk-connector|dingtalk|dd|ding):/i, ''),
+    }),
+    resolveGroupPolicy: ({ account }: any) => ({
+      policy: account.config?.groupPolicy || 'open',
+      allowFrom: account.config?.allowFrom || [],
+      policyPath: 'channels.dingtalk-connector.groupPolicy',
       allowFromPath: 'channels.dingtalk-connector.allowFrom',
       approveHint: '使用 /allow dingtalk-connector:<userId> 批准用户',
       normalizeEntry: (raw: string) => raw.replace(/^(dingtalk-connector|dingtalk|dd|ding):/i, ''),
