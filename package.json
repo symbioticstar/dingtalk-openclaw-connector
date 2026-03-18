@@ -6,8 +6,10 @@
   "type": "module",
   "scripts": {
     "build": "echo 'No build needed - jiti loads TS at runtime'",
-    "lint": "echo 'Lint check skipped'",
-    "lint:fix": "echo 'Lint fix skipped'",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
@@ -21,7 +23,7 @@
     "clean": "rm -rf node_modules package-lock.json",
     "install:fresh": "npm run clean && npm install",
     "dev": "echo 'Run: openclaw start'",
-    "validate": "npm run lint && npm run type-check && npm run version:check"
+    "validate": "npm run lint && npm run format:check && npm run type-check && npm run version:check"
   },
   "keywords": [
     "dingtalk",
@@ -51,6 +53,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.37",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
     "typescript": "^5.6.0",
     "vitest": "^1.6.0"
   },

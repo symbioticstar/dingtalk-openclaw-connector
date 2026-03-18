@@ -6,6 +6,14 @@
 This document records all significant changes. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [0.7.10] - 2026-03-16
+
+### 新增 / Added
+- ✨ **群聊白名单拦截** - `groupPolicy: 'allowlist'` 现在同时执行发送者白名单检查：群聊中不在 `allowFrom` 列表内的用户即使 @ 机器人也会被静默拦截，与单聊 `dmPolicy` 行为对称  
+  **Group chat allowlist enforcement** - `groupPolicy: 'allowlist'` now enforces sender-level whitelist check: users not in `allowFrom` who @ the bot in group chats are silently dropped, mirroring the existing DM allowlist behavior
+- ✨ **`resolveGroupPolicy` 安全接口** - 在 `security` 配置节新增 `resolveGroupPolicy`，允许 OpenClaw 平台统一管理群聊白名单策略（`/allow` 命令支持）  
+  **`resolveGroupPolicy` security interface** - Added `resolveGroupPolicy` to the `security` config section, enabling the OpenClaw platform to manage group chat allowlist policy uniformly (supports the `/allow` command)
+
 ## [0.7.9] - 2026-03-13
 
 ### 新增 / Added

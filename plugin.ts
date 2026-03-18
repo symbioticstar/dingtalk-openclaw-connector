@@ -1263,6 +1263,7 @@ async function finishAICard(
           order: ['msgContent'],  // 只声明实际使用的字段，避免部分客户端显示空占位
         }),
       },
+      cardUpdateOptions:{updateCardDataByKey:true}
     },
   };
 
@@ -1776,7 +1777,7 @@ async function sendMessage(
   text: string,
   options: any = {},
 ): Promise<any> {
-  const hasMarkdown = /^[#*>-]|[*_`#\[\]]/.test(text) || text.includes('\n');
+  const hasMarkdown = /^[#*>-]|[*_`#[\]]/.test(text) || text.includes('\n');
   const useMarkdown = options.useMarkdown !== false && (options.useMarkdown || hasMarkdown);
 
   if (useMarkdown) {
@@ -1864,7 +1865,11 @@ async function createAICardForTarget(
     const createBody = {
       cardTemplateId: AI_CARD_TEMPLATE_ID,
       outTrackId: cardInstanceId,
-      cardData: { cardParamMap: {} },
+      cardData: {
+        cardParamMap: {
+          config: JSON.stringify({ autoLayout: true }),  // 启用宽屏模式
+        },
+      },
       callbackType: 'STREAM',
       imGroupOpenSpaceModel: { supportForward: true },
       imRobotOpenSpaceModel: { supportForward: true },
@@ -2521,7 +2526,7 @@ async function sendProactive(
 ): Promise<SendResult> {
   // 自动检测是否使用 markdown（用于降级时）
   if (!options.msgType) {
-    const hasMarkdown = /^[#*>-]|[*_`#\[\]]/.test(content) || content.includes('\n');
+    const hasMarkdown = /^[#*>-]|[*_`#[\]]/.test(content) || content.includes('\n');
     if (hasMarkdown) {
       options.msgType = 'markdown';
     }

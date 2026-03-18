@@ -3,7 +3,7 @@
 
 以下提供两种方案连接到 [OpenClaw](https://openclaw.ai) Gateway，分别是钉钉机器人和钉钉 DEAP Agent。
 
-> 📝 **版本信息**：当前版本 v0.7.7 | [查看变更日志](CHANGELOG.md) | [发布说明](docs/RELEASE_NOTES_V0.7.7.md) | [发布指南](RELEASE.md)
+> 📝 **版本信息**：当前版本 v0.7.10 | [查看变更日志](CHANGELOG.md) | [发布说明](docs/RELEASE_NOTES_V0.7.10.md) | [发布指南](RELEASE.md)
 
 ## 快速导航
 
@@ -149,6 +149,9 @@ openclaw plugins list  # 确认 dingtalk-connector 已加载
 | `separateSessionByConversation` | — | 是否按单聊/群聊/群区分 session（默认：true） |
 | `groupSessionScope` | — | 群聊会话隔离策略（仅当 separateSessionByConversation=true 时生效）：`group`=群共享，`group_sender`=群内用户独立（默认：group） |
 | `sharedMemoryAcrossConversations` | — | 是否在不同会话间共享记忆；false 时群聊与私聊、不同群记忆隔离（默认：false） |
+| `dmPolicy` | — | 单聊访问策略：`open`=所有人可用，`allowlist`=仅白名单用户（默认：open） |
+| `groupPolicy` | — | 群聊访问策略：`open`=所有人可用，`allowlist`=仅白名单用户（默认：open） |
+| `allowFrom` | — | 白名单用户 ID 列表（staffId），`dmPolicy` 或 `groupPolicy` 为 `allowlist` 时生效 |
 | `asyncMode` | — | 异步模式，立即回执用户消息，后台处理并推送结果（默认：false） |
 | `ackText` | — | 异步模式下的回执消息文本（默认：'🫡 任务已接收，处理中...'） |
 
@@ -180,6 +183,49 @@ openclaw plugins list  # 确认 dingtalk-connector 已加载
 - ✅ 群内所有成员共享对话上下文（默认 `groupSessionScope: "group"`）
 - ✅ 群内每个用户独立对话（设置 `groupSessionScope: "group_sender"`）
 - ✅ 需要跨会话共享记忆时，可设置 `sharedMemoryAcrossConversations: true`
+
+## 访问控制（白名单）
+
+连接器支持对单聊和群聊分别配置白名单策略，只允许特定用户的消息被处理。
+
+### 单聊白名单（dmPolicy）
+
+设置 `dmPolicy: 'allowlist'` 后，只有 `allowFrom` 列表中的用户发送的私信才会被处理，其他人的消息会被静默拦截。
+
+### 群聊白名单（groupPolicy）
+
+设置 `groupPolicy: 'allowlist'` 后，群聊中只有 `allowFrom` 列表中的用户 @ 机器人的消息才会被处理，不在白名单的用户即使 @ 机器人也会被静默拦截。
+
+### 配置示例
+
+```json5
+{
+  "channels": {
+    "dingtalk-connector": {
+      "enabled": true,
+      "clientId": "dingxxxxxxxxx",
+      "clientSecret": "your_secret_here",
+      "dmPolicy": "allowlist",      // 单聊：仅白名单用户
+      "groupPolicy": "allowlist",   // 群聊：仅白名单用户
+      "allowFrom": [                // 共享的白名单（staffId 列表）
+        "user_staff_id_1",
+        "user_staff_id_2"
+      ]
+    }
+  }
+}
+```
+
+> **说明**：`dmPolicy` 和 `groupPolicy` 共享同一个 `allowFrom` 列表。用户的 staffId 可在钉钉开放平台的用户管理页面查询，或通过 `senderId` 日志获取。
+
+### 使用命令管理白名单
+
+也可以通过 OpenClaw 命令动态管理白名单：
+
+```bash
+# 允许某个用户（单聊和群聊共用）
+/allow dingtalk-connector:<userId>
+```
 
 ## 异步模式
 
