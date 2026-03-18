@@ -10,7 +10,7 @@ vi.mock('axios', () => ({
   },
 }));
 
-const log = {
+const _log = {
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),

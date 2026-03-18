@@ -32,7 +32,7 @@ vi.mock('os', () => ({
   tmpdir: () => '/tmp',
 }));
 
-const log = {
+const _log = {
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),

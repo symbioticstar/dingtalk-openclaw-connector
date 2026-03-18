@@ -74,7 +74,6 @@ describe('upload functionality', () => {
         },
       });
 
-      const config = { clientId: 'test', clientSecret: 'secret' };
       const result = await uploadMediaToDingTalk('/tmp/file.png', 'image', 'token123', 20 * 1024 * 1024, log);
 
       expect(result).toBe('media123');

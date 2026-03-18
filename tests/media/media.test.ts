@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { __testables } from '../../plugin';
 
-const { toLocalPath, processLocalImages, uploadMediaToDingTalk } = __testables as any;
+const { toLocalPath, processLocalImages } = __testables as any;
 
 describe('media helpers', () => {
   beforeEach(() => {

@@ -18,6 +18,7 @@
         "varsIgnorePattern": "^_"
       }
     ],
+    "eslint/no-await-in-loop": "off",
     "eslint/no-console": "off",
     "typescript/no-explicit-any": "off"
   },

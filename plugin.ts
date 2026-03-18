@@ -28,15 +28,6 @@ function getRuntime(): PluginRuntime {
 
 // ============ Session 管理 ============
 
-/** 用户会话状态：记录最后活跃时间和当前 session 标识 */
-interface UserSession {
-  lastActivity: number;
-  sessionId: string;  // 格式: dingtalk-connector:<senderId> 或 dingtalk-connector:<senderId>:<timestamp>
-}
-
-/** 用户会话缓存 Map<senderId, UserSession> */
-const userSessions = new Map<string, UserSession>();
-
 /** 消息去重缓存 Map<messageId, timestamp> - 防止同一消息被重复处理 */
 const processedMessages = new Map<string, number>();
 
@@ -349,9 +340,6 @@ function buildMediaSystemPrompt(): string {
  */
 const LOCAL_IMAGE_RE = /!\[([^\]]*)\]\(((?:file:\/\/\/|MEDIA:|attachment:\/\/\/)[^)]+|\/(?:tmp|var|private|Users|home|root)[^)]+|[A-Za-z]:[\\/ ][^)]+)\)/g;
 
-/** 图片文件扩展名 */
-const IMAGE_EXTENSIONS = /\.(png|jpg|jpeg|gif|bmp|webp|tiff|svg)$/i;
-
 /**
  * 匹配纯文本中的本地图片路径（不在 markdown 图片语法中，跨平台）：
  * macOS:
@@ -370,18 +358,18 @@ const BARE_IMAGE_PATH_RE = /`?((?:\/(?:tmp|var|private|Users|home|root)\/[^\s`'"
 
 /** 去掉 file:// / MEDIA: / attachment:// 前缀，得到实际的绝对路径 */
 function toLocalPath(raw: string): string {
-  let path = raw;
-  if (path.startsWith('file://')) path = path.replace('file://', '');
-  else if (path.startsWith('MEDIA:')) path = path.replace('MEDIA:', '');
-  else if (path.startsWith('attachment://')) path = path.replace('attachment://', '');
+  let p = raw;
+  if (p.startsWith('file://')) p = p.replace('file://', '');
+  else if (p.startsWith('MEDIA:')) p = p.replace('MEDIA:', '');
+  else if (p.startsWith('attachment://')) p = p.replace('attachment://', '');
 
   // 解码 URL 编码的路径（如中文字符 %E5%9B%BE → 图）
   try {
-    path = decodeURIComponent(path);
+    p = decodeURIComponent(p);
   } catch {
     // 解码失败则保持原样
   }
-  return path;
+  return p;
 }
 
 /**
@@ -401,8 +389,6 @@ async function uploadMediaToDingTalk(
   log?: any,
 ): Promise<string | null> {
   try {
-    const fs = await import('fs');
-    const path = await import('path');
     const FormData = (await import('form-data')).default;
 
     const absPath = toLocalPath(filePath);
@@ -593,7 +579,6 @@ async function extractVideoThumbnail(
   try {
     const ffmpeg = require('fluent-ffmpeg');
     const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-    const path = await import('path');
     ffmpeg.setFfmpegPath(ffmpegPath);
 
     return new Promise((resolve) => {
@@ -634,7 +619,6 @@ async function sendVideoMessage(
   log?: any,
 ): Promise<void> {
   try {
-    const path = await import('path');
     const fileName = path.basename(videoInfo.path);
 
     const payload = {
@@ -688,10 +672,6 @@ async function processVideoMarkers(
     log?.warn?.(`${logPrefix} 无 oapiToken，跳过视频处理`);
     return content;
   }
-
-  const fs = await import('fs');
-  const path = await import('path');
-  const os = await import('os');
 
   // 提取视频标记
   const matches = [...content.matchAll(VIDEO_MARKER_PATTERN)];
@@ -929,7 +909,7 @@ async function extractAudioDuration(
         '-print_format', 'json',
         '-show_format',
         filePath,
-      ], { timeout: 10_000 }, (err: any, stdout: string, stderr: string) => {
+      ], { timeout: 10_000 }, (err: any, stdout: string, _stderr: string) => {
         if (err) {
           log?.error?.(`[DingTalk][Audio] ffprobe 执行失败 (${ffprobeBin}): ${err.message}`);
           return resolve(null);
@@ -1031,8 +1011,6 @@ async function processFileMarkers(
   log?.info?.(`[DingTalk][File] 检测到 ${fileInfos.length} 个文件标记，开始处理... (useProactiveApi=${useProactiveApi})`);
 
   const statusMessages: string[] = [];
-
-  const fs = await import('fs');
 
   // 逐个上传并发送文件消息
   for (const fileInfo of fileInfos) {
@@ -1319,7 +1297,6 @@ function resolveAgentIdByBindings(
   peerId: string,
   log?: any,
 ): string {
-  const rt = getRuntime();
   const defaultAgentId = accountId === DEFAULT_ACCOUNT_ID ? 'main' : accountId;
 
   // 读取 OpenClaw 配置
@@ -1638,8 +1615,6 @@ async function downloadFileByCode(
 /** 可直接读取内容的文本类文件扩展名 */
 const TEXT_FILE_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json', '.xml', '.yaml', '.yml', '.html', '.htm', '.log', '.conf', '.ini', '.sh', '.py', '.js', '.ts', '.css', '.sql']);
 
-/** 需要保存但无法直接读取的 Office/二进制文件扩展名 */
-const OFFICE_FILE_EXTENSIONS = new Set(['.docx', '.xlsx', '.pptx', '.pdf', '.doc', '.xls', '.ppt', '.zip', '.rar', '.7z']);
 
 // ============ 消息处理 ============
 
@@ -2084,9 +2059,6 @@ async function processAudioMarkers(
     return content;
   }
 
-  const fs = await import('fs');
-  const path = await import('path');
-
   const matches = [...content.matchAll(AUDIO_MARKER_PATTERN)];
   const audioInfos: AudioInfo[] = [];
   const invalidAudios: string[] = [];
@@ -2431,7 +2403,7 @@ async function sendToUser(
     return { ok: false, error: 'Missing clientId or clientSecret', usedAICard: false };
   }
 
-  const userIdArray = (Array.isArray(userIds) ? userIds : [userIds]).filter((id) => Boolean(id));
+  const userIdArray = (Array.isArray(userIds) ? userIds : [userIds]).filter((v) => Boolean(v));
   if (userIdArray.length === 0) {
     return { ok: false, error: 'userIds cannot be empty', usedAICard: false };
   }
@@ -2950,21 +2922,21 @@ async function handleDingTalkMessage(params: {
 
       // 【关键修复】AI Card 场景使用主动消息 API 发送文件/视频，避免 sessionWebhook 失效问题
       // 构建目标信息用于主动 API（isDirect 已在上面定义）
-      const proactiveTarget: AICardTarget = isDirect
+      const cardProactiveTarget: AICardTarget = isDirect
         ? { type: 'user', userId: data.senderStaffId || data.senderId }
         : { type: 'group', openConversationId: data.conversationId };
 
       // 后处理02：提取视频标记并发送视频消息（使用主动消息 API）
       log?.info?.(`[DingTalk][Video] 开始视频后处理 (使用主动API)`);
-      accumulated = await processVideoMarkers(accumulated, '', dingtalkConfig, oapiToken, log, true, proactiveTarget);
+      accumulated = await processVideoMarkers(accumulated, '', dingtalkConfig, oapiToken, log, true, cardProactiveTarget);
 
       // 后处理03：提取音频标记并发送音频消息（使用主动消息 API）
       log?.info?.(`[DingTalk][Audio] 开始音频后处理 (使用主动API)`);
-      accumulated = await processAudioMarkers(accumulated, '', dingtalkConfig, oapiToken, log, true, proactiveTarget);
+      accumulated = await processAudioMarkers(accumulated, '', dingtalkConfig, oapiToken, log, true, cardProactiveTarget);
 
       // 后处理04：提取文件标记并发送独立文件消息（使用主动消息 API）
-      log?.info?.(`[DingTalk][File] 开始文件后处理 (使用主动API，目标=${JSON.stringify(proactiveTarget)})`);
-      accumulated = await processFileMarkers(accumulated, sessionWebhook, dingtalkConfig, oapiToken, log, true, proactiveTarget);
+      log?.info?.(`[DingTalk][File] 开始文件后处理 (使用主动API，目标=${JSON.stringify(cardProactiveTarget)})`);
+      accumulated = await processFileMarkers(accumulated, sessionWebhook, dingtalkConfig, oapiToken, log, true, cardProactiveTarget);
 
       // 完成 AI Card（如果内容为空，说明是纯媒体消息，使用默认提示）
       const finalContent = accumulated.trim();
@@ -3414,12 +3386,12 @@ const dingtalkPlugin = {
     },
     resolveAccount: (cfg: ClawdbotConfig, accountId?: string) => {
       const config = getConfig(cfg);
-      const id = accountId || DEFAULT_ACCOUNT_ID;
-      if (config.accounts?.[id]) {
+      const resolvedId = accountId || DEFAULT_ACCOUNT_ID;
+      if (config.accounts?.[resolvedId]) {
         // 合并 channel 级别配置（如 gatewayBaseUrl）到 account 配置
-        const { accounts, ...channelConfig } = config;
-        const mergedConfig = { ...channelConfig, ...config.accounts[id] };
-        return { accountId: id, config: mergedConfig, enabled: config.accounts[id].enabled !== false };
+        const { accounts: _, ...channelConfig } = config;
+        const mergedConfig = { ...channelConfig, ...config.accounts[resolvedId] };
+        return { accountId: resolvedId, config: mergedConfig, enabled: config.accounts[resolvedId].enabled !== false };
       }
       // 没有 accounts 配置或找不到指定账号时，使用顶层配置
       return { accountId: DEFAULT_ACCOUNT_ID, config, enabled: config.enabled !== false };
@@ -3463,7 +3435,7 @@ const dingtalkPlugin = {
     },
     targetResolver: {
       // 支持普通 ID、Base64 编码的 conversationId，以及 user:/group: 前缀格式
-      looksLikeId: (id: string) => /^(user:|group:)?[\w+/=-]+$/.test(id),
+      looksLikeId: (v: string) => /^(user:|group:)?[\w+/=-]+$/.test(v),
       hint: 'user:<userId> 或 group:<conversationId>',
     },
   },

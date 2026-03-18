@@ -3,14 +3,6 @@ import { __testables } from '../../plugin';
 
 const { extractMessageContent } = __testables as any;
 
-const emptyArrays = {
-  imageUrls: [],
-  downloadCodes: [],
-  fileNames: [],
-  atDingtalkIds: [],
-  atMobiles: [],
-};
-
 describe('extractMessageContent', () => {
   describe('msgtype 缺失或 default 分支', () => {
     it.each([
