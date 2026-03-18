@@ -15,6 +15,7 @@ This update primarily fixes the default Agent routing regression introduced in v
 In version 0.7.0, the default route (when no `accountId` was configured) was incorrectly changed from `main` agent to `default` agent, causing inconsistency with versions before 0.7.0, which may affect existing user configurations and session routing.
 
 **修复内容 / Fix**：
+
 - 恢复默认路由到 `main` agent，与 0.7.0 之前版本保持一致  
   Restored default routing to `main` agent, consistent with versions before 0.7.0
 - 使用 `__default__` 作为内部默认账号标识，避免与用户配置的 `default` 账号冲突  
@@ -33,6 +34,7 @@ Affects all users using default configuration (without `accounts` configuration)
 When users explicitly configure an account named `default`, the system incorrectly maps it to the internal default account, preventing the user-configured `default` account from working properly.
 
 **修复内容 / Fix**：
+
 - 使用 `__default__` 作为内部默认账号标识，与用户配置的 `default` 账号区分开  
   Use `__default__` as internal default account identifier, separate from user-configured `default` accounts
 - 确保用户配置的 `default` 账号能够正常使用  
@@ -47,6 +49,7 @@ Affects users who explicitly configured an account named `default`. After the fi
 ### 1. 代码结构优化 / Code Structure Optimization
 
 **改进内容 / Improvements**：
+
 - 抽取 `DEFAULT_ACCOUNT_ID` 常量到文件顶部（值为 `__default__`），统一管理默认账号标识  
   Extracted `DEFAULT_ACCOUNT_ID` constant to file top (value: `__default__`), unified management of default account identifier
 - 更新所有相关代码，使用常量替代硬编码的字符串  
@@ -61,6 +64,7 @@ Internal code improvements, does not affect user usage, but improves code qualit
 ### 2. API 文档更新 / API Documentation Updates
 
 **改进内容 / Improvements**：
+
 - 更新 API 文档注释，移除对 `default` 的硬编码引用  
   Updated API documentation comments, removed hardcoded references to `default`
 - 明确说明 `accountId` 参数为可选，不传则使用默认配置  
@@ -75,10 +79,12 @@ Documentation improvements, helping developers better understand API usage.
 ### 内部实现变更 / Internal Implementation Changes
 
 **变更前 / Before**：
+
 - 默认账号标识使用 `'default'` 字符串
 - 当 `accountId` 为 `'default'` 时，不发送 `X-OpenClaw-Agent-Id` header，让 gateway 路由到其配置的默认 agent
 
 **变更后 / After**：
+
 - 默认账号标识使用 `'__default__'` 常量
 - 在 `streamFromGateway` 中，将 `'__default__'` 映射到 `'main'` agent，并发送 `X-OpenClaw-Agent-Id: main` header
 - 用户配置的 `'default'` 账号正常使用，不会被特殊处理
@@ -86,9 +92,11 @@ Documentation improvements, helping developers better understand API usage.
 ### 相关代码位置 / Related Code Locations
 
 主要修改文件：
+
 - `plugin.ts` - 核心逻辑修改
 
 关键变更点：
+
 - 新增 `DEFAULT_ACCOUNT_ID` 常量定义
 - `streamFromGateway` 函数中的 agent 路由逻辑
 - `listAccountIds`、`resolveAccount`、`defaultAccountId` 等配置相关函数
@@ -140,7 +148,7 @@ If you encountered default routing issues in versions 0.7.0 or 0.7.1, after upgr
 ## 🙏 致谢 / Acknowledgments
 
 感谢所有贡献者和用户的支持与反馈！
-Thanks to all contributors and users for their support and feedback! 
+Thanks to all contributors and users for their support and feedback!
 
 ---
 

@@ -6,27 +6,27 @@
 
 ## 模块列表
 
-| 目录 | 覆盖函数/能力 | 说明 |
-|------|----------------|------|
-| [session](./session/) | normalizeSlashCommand, buildSessionContext, isMessageProcessed, markMessageProcessed, cleanupProcessedMessages | 会话与消息去重 |
-| [config-token](./config-token/) | getConfig, isConfigured, getAccessToken, getOapiAccessToken, getUnionId | 配置与 Token |
-| [media](./media/) | toLocalPath, processLocalImages | 本地路径与图片后处理 |
-| [video](./video/) | processVideoMarkers | 视频标记解析与控制流 |
-| [message-extract](./message-extract/) | extractMessageContent | 钉钉消息内容提取（text/richText/picture/audio/video/file） |
-| [file-markers](./file-markers/) | extractFileMarkers, isAudioFile | 文件标记解析与音频类型判断 |
-| [prompts](./prompts/) | buildMediaSystemPrompt | 媒体相关系统提示词 |
-| [deliver-payload](./deliver-payload/) | buildDeliverBody, buildMsgPayload | AI Card 投放体与普通消息体 |
-| [bindings](./bindings/) | resolveAgentIdByBindings | OpenClaw bindings 解析（需 mock fs/path/os） |
-| [ai-card](./ai-card/) | create/stream/finish AI Card, sendAICard* | AI Card 创建与流式更新（结构化返回 + 回退） |
-| [card-update](./card-update/) | createAICard + stream/finish 状态机（回归集） | 轻量回归：目标选择与 INPUTING→streaming→FINISHED 状态机（避免与 ai-card/proactive 重复） |
-| [send-message](./send-message/) | sendTextMessage, sendMarkdownMessage, sendMessage | 群机器人 webhook 发送（自动 text/markdown 判定） |
-| [proactive](./proactive/) | buildMsgPayload, sendNormalTo*, sendTo*, sendProactive | 主动消息 API：消息体构造、AI Card 策略与回退 |
-| [audio](./audio/) | isAudioFile, getFfprobePath, extractAudioDuration, processAudioMarkers, sendAudio* | 音频识别、时长解析与音频发送 |
-| [upload](./upload/) | uploadMediaToDingTalk, download*/extractVideo*, process*Markers | 上传/下载/媒体处理与 marker 处理（多分支容错） |
-| [download](./download/) | downloadImageToFile, downloadMediaByCode, downloadFileByCode | 下载与文件名/扩展名推断 |
-| [mcp-tools](./mcp-tools/) | MCP 工具层：sendToUser/sendToGroup/sendProactive/uploadMedia... | 对外工具输入校验与行为一致性 |
-| [core](./core/) | normalizeSlashCommand/getConfig/getAccessToken/... | 核心能力冒烟/回归集合（跨模块快速验证） |
-| [integration](./integration/) | getAccessToken, sendToUser, AI Card, media upload | 端到端集成测试（需要真实环境变量） |
+| 目录                                  | 覆盖函数/能力                                                                                                  | 说明                                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [session](./session/)                 | normalizeSlashCommand, buildSessionContext, isMessageProcessed, markMessageProcessed, cleanupProcessedMessages | 会话与消息去重                                                                           |
+| [config-token](./config-token/)       | getConfig, isConfigured, getAccessToken, getOapiAccessToken, getUnionId                                        | 配置与 Token                                                                             |
+| [media](./media/)                     | toLocalPath, processLocalImages                                                                                | 本地路径与图片后处理                                                                     |
+| [video](./video/)                     | processVideoMarkers                                                                                            | 视频标记解析与控制流                                                                     |
+| [message-extract](./message-extract/) | extractMessageContent                                                                                          | 钉钉消息内容提取（text/richText/picture/audio/video/file）                               |
+| [file-markers](./file-markers/)       | extractFileMarkers, isAudioFile                                                                                | 文件标记解析与音频类型判断                                                               |
+| [prompts](./prompts/)                 | buildMediaSystemPrompt                                                                                         | 媒体相关系统提示词                                                                       |
+| [deliver-payload](./deliver-payload/) | buildDeliverBody, buildMsgPayload                                                                              | AI Card 投放体与普通消息体                                                               |
+| [bindings](./bindings/)               | resolveAgentIdByBindings                                                                                       | OpenClaw bindings 解析（需 mock fs/path/os）                                             |
+| [ai-card](./ai-card/)                 | create/stream/finish AI Card, sendAICard\*                                                                     | AI Card 创建与流式更新（结构化返回 + 回退）                                              |
+| [card-update](./card-update/)         | createAICard + stream/finish 状态机（回归集）                                                                  | 轻量回归：目标选择与 INPUTING→streaming→FINISHED 状态机（避免与 ai-card/proactive 重复） |
+| [send-message](./send-message/)       | sendTextMessage, sendMarkdownMessage, sendMessage                                                              | 群机器人 webhook 发送（自动 text/markdown 判定）                                         |
+| [proactive](./proactive/)             | buildMsgPayload, sendNormalTo*, sendTo*, sendProactive                                                         | 主动消息 API：消息体构造、AI Card 策略与回退                                             |
+| [audio](./audio/)                     | isAudioFile, getFfprobePath, extractAudioDuration, processAudioMarkers, sendAudio\*                            | 音频识别、时长解析与音频发送                                                             |
+| [upload](./upload/)                   | uploadMediaToDingTalk, download*/extractVideo*, process\*Markers                                               | 上传/下载/媒体处理与 marker 处理（多分支容错）                                           |
+| [download](./download/)               | downloadImageToFile, downloadMediaByCode, downloadFileByCode                                                   | 下载与文件名/扩展名推断                                                                  |
+| [mcp-tools](./mcp-tools/)             | MCP 工具层：sendToUser/sendToGroup/sendProactive/uploadMedia...                                                | 对外工具输入校验与行为一致性                                                             |
+| [core](./core/)                       | normalizeSlashCommand/getConfig/getAccessToken/...                                                             | 核心能力冒烟/回归集合（跨模块快速验证）                                                  |
+| [integration](./integration/)         | getAccessToken, sendToUser, AI Card, media upload                                                              | 端到端集成测试（需要真实环境变量）                                                       |
 
 ## 运行方式
 

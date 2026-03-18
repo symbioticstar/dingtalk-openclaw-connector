@@ -1,23 +1,23 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock('axios', () => ({
+vi.mock("axios", () => ({
   default: {
     post: vi.fn(),
     get: vi.fn(),
   },
 }));
 
-import axios from 'axios';
-import { __testables } from '../../plugin';
+import axios from "axios";
+import { __testables } from "../../plugin";
 
 const { getConfig, isConfigured, getAccessToken, getOapiAccessToken, getUnionId } = __testables as any;
 
-describe('config & token helpers', () => {
+describe("config & token helpers", () => {
   const baseCfg = {
     channels: {
-      'dingtalk-connector': {
-        clientId: 'id-1',
-        clientSecret: 'secret-1',
+      "dingtalk-connector": {
+        clientId: "id-1",
+        clientSecret: "secret-1",
       },
     },
   } as any;
@@ -26,92 +26,92 @@ describe('config & token helpers', () => {
     vi.clearAllMocks();
   });
 
-  describe('getConfig / isConfigured', () => {
-    it('should extract dingtalk-connector config from ClawdbotConfig', () => {
+  describe("getConfig / isConfigured", () => {
+    it("should extract dingtalk-connector config from ClawdbotConfig", () => {
       const cfg = getConfig(baseCfg);
-      expect(cfg).toEqual(baseCfg.channels['dingtalk-connector']);
+      expect(cfg).toEqual(baseCfg.channels["dingtalk-connector"]);
     });
 
-    it('should return empty object when channel not configured', () => {
+    it("should return empty object when channel not configured", () => {
       const cfg = getConfig({ channels: {} } as any);
       expect(cfg).toEqual({});
     });
 
-    it('should return empty object when cfg is undefined or empty', () => {
+    it("should return empty object when cfg is undefined or empty", () => {
       expect(getConfig(undefined as any)).toEqual({});
       expect(getConfig({} as any)).toEqual({});
     });
 
-    it('should consider config valid only when clientId and clientSecret exist', () => {
+    it("should consider config valid only when clientId and clientSecret exist", () => {
       expect(isConfigured(baseCfg)).toBe(true);
       expect(isConfigured({ channels: {} } as any)).toBe(false);
       expect(
         isConfigured({
-          channels: { 'dingtalk-connector': { clientId: 'id-only' } },
+          channels: { "dingtalk-connector": { clientId: "id-only" } },
         } as any),
       ).toBe(false);
       expect(
         isConfigured({
-          channels: { 'dingtalk-connector': { clientSecret: 'secret-only' } },
+          channels: { "dingtalk-connector": { clientSecret: "secret-only" } },
         } as any),
       ).toBe(false);
     });
   });
 
-  describe('getAccessToken', () => {
-    it('should request new token and cache it', async () => {
+  describe("getAccessToken", () => {
+    it("should request new token and cache it", async () => {
       const now = Date.now();
-      vi.spyOn(Date, 'now').mockReturnValue(now);
+      vi.spyOn(Date, "now").mockReturnValue(now);
 
       (axios.post as any).mockResolvedValue({
         data: {
-          accessToken: 'token-1',
+          accessToken: "token-1",
           expireIn: 3600,
         },
       });
 
-      const token1 = await getAccessToken(baseCfg.channels['dingtalk-connector']);
-      const token2 = await getAccessToken(baseCfg.channels['dingtalk-connector']);
+      const token1 = await getAccessToken(baseCfg.channels["dingtalk-connector"]);
+      const token2 = await getAccessToken(baseCfg.channels["dingtalk-connector"]);
 
-      expect(token1).toBe('token-1');
-      expect(token2).toBe('token-1');
+      expect(token1).toBe("token-1");
+      expect(token2).toBe("token-1");
       expect(axios.post).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('getOapiAccessToken', () => {
-    it('should return token when oapi returns success', async () => {
+  describe("getOapiAccessToken", () => {
+    it("should return token when oapi returns success", async () => {
       (axios.get as any).mockResolvedValue({
         data: {
           errcode: 0,
-          access_token: 'oapi-token',
+          access_token: "oapi-token",
         },
       });
 
-      const token = await getOapiAccessToken(baseCfg.channels['dingtalk-connector']);
-      expect(token).toBe('oapi-token');
+      const token = await getOapiAccessToken(baseCfg.channels["dingtalk-connector"]);
+      expect(token).toBe("oapi-token");
     });
 
-    it('should return null when oapi returns error', async () => {
+    it("should return null when oapi returns error", async () => {
       (axios.get as any).mockResolvedValue({
         data: {
           errcode: 123,
         },
       });
 
-      const token = await getOapiAccessToken(baseCfg.channels['dingtalk-connector']);
+      const token = await getOapiAccessToken(baseCfg.channels["dingtalk-connector"]);
       expect(token).toBeNull();
     });
 
-    it('should return null when axios.get throws', async () => {
-      (axios.get as any).mockRejectedValue(new Error('network error'));
-      const token = await getOapiAccessToken(baseCfg.channels['dingtalk-connector']);
+    it("should return null when axios.get throws", async () => {
+      (axios.get as any).mockRejectedValue(new Error("network error"));
+      const token = await getOapiAccessToken(baseCfg.channels["dingtalk-connector"]);
       expect(token).toBeNull();
     });
   });
 
-  describe('getUnionId', () => {
-    it('should call oapi once and then use cache', async () => {
+  describe("getUnionId", () => {
+    it("should call oapi once and then use cache", async () => {
       const log = {
         info: vi.fn(),
         error: vi.fn(),
@@ -119,35 +119,34 @@ describe('config & token helpers', () => {
 
       // 根据 URL 分支模拟 gettoken 与 user/get 两种调用
       (axios.get as any).mockImplementation((url: string) => {
-        if (url.includes('gettoken')) {
+        if (url.includes("gettoken")) {
           return Promise.resolve({
             data: {
               errcode: 0,
-              access_token: 'oapi-token',
+              access_token: "oapi-token",
             },
           });
         }
-        if (url.includes('/user/get')) {
+        if (url.includes("/user/get")) {
           return Promise.resolve({
             data: {
-              unionid: 'union-1',
+              unionid: "union-1",
             },
           });
         }
-        return Promise.reject(new Error('unexpected url'));
+        return Promise.reject(new Error("unexpected url"));
       });
 
-      const cfg = baseCfg.channels['dingtalk-connector'];
+      const cfg = baseCfg.channels["dingtalk-connector"];
 
-      const u1 = await getUnionId('staff-1', cfg, log);
-      const u2 = await getUnionId('staff-1', cfg, log);
+      const u1 = await getUnionId("staff-1", cfg, log);
+      const u2 = await getUnionId("staff-1", cfg, log);
 
-      expect(u1).toBe('union-1');
-      expect(u2).toBe('union-1');
+      expect(u1).toBe("union-1");
+      expect(u2).toBe("union-1");
       // 第一次：gettoken + user/get，两次 HTTP 调用；第二次命中缓存不再访问网络
       expect((axios.get as any).mock.calls.length).toBe(2);
       expect(log.info).toHaveBeenCalled();
     });
   });
 });
-

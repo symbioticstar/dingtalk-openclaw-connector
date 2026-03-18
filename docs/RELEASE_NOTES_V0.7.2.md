@@ -14,6 +14,7 @@ This update adds async mode functionality and fixes several critical issues, imp
 Immediately acknowledge user messages, process in background, then push the final result as a separate message
 
 **使用场景 / Use Cases**：
+
 - 处理耗时较长的任务（如文档分析、代码生成等）  
   Processing time-consuming tasks (e.g., document analysis, code generation)
 - 需要给用户即时反馈的场景  
@@ -25,16 +26,17 @@ Immediately acknowledge user messages, process in background, then push the fina
 
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
-      "asyncMode": true,              // 启用异步模式 / Enable async mode
-      "ackText": "🫡 任务已接收"  // 可选：自定义回执消息 / Optional: Custom ack message
-    }
-  }
+      asyncMode: true, // 启用异步模式 / Enable async mode
+      ackText: "🫡 任务已接收", // 可选：自定义回执消息 / Optional: Custom ack message
+    },
+  },
 }
 ```
 
 **工作流程 / Workflow**：
+
 1. **立即回执** - 用户发送消息后，连接器立即发送回执消息  
    **Immediate Acknowledgment** - Connector immediately sends acknowledgment message after user sends message
 2. **后台处理** - 连接器在后台调用 Gateway 处理任务，支持文件附件和图片  
@@ -53,6 +55,7 @@ All users can optionally enable this feature. Default is off, does not affect ex
 In async mode, `streamFromGateway` was called without `accountId`, causing sessions to route to undefined agent
 
 **修复内容 / Fix**：
+
 - 修复 `streamFromGateway` 调用，正确传递 `accountId` 参数  
   Fixed `streamFromGateway` call to correctly pass `accountId` parameter
 - 确保异步模式下 Agent 路由正常工作  
@@ -67,6 +70,7 @@ Affects users using async mode. After the fix, Agent routing in async mode will 
 When `accountId` is `'default'`, `X-OpenClaw-Agent-Id` header was still sent, causing routing issues
 
 **修复内容 / Fix**：
+
 - 当 `accountId` 为 `'default'` 时跳过 `X-OpenClaw-Agent-Id` header  
   Skip `X-OpenClaw-Agent-Id` header when `accountId` is `'default'`
 - 让 gateway 路由到其配置的默认 agent  
@@ -81,6 +85,7 @@ Affects users with default Agent configuration. After the fix, default Agent rou
 Async mode used raw `content.text`, did not include file attachment content
 
 **修复内容 / Fix**：
+
 - 使用 `userContent`（包含文件附件）替代原始 `content.text`  
   Use `userContent` (includes file attachments) instead of raw `content.text`
 - 确保文件附件内容正确传递给 Gateway  
@@ -95,6 +100,7 @@ Affects users using async mode and sending file attachments. After the fix, file
 Image paths were not passed to Gateway stream in async mode
 
 **修复内容 / Fix**：
+
 - 将 `imageLocalPaths` 传递给 gateway stream  
   Pass `imageLocalPaths` to gateway stream
 - 确保图片在异步模式下正确处理  

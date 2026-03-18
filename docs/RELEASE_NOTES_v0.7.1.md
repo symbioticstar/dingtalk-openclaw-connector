@@ -14,6 +14,7 @@ This update fixes critical issues in stream mode to ensure Agent routing functio
 Incorrect model parameter in stream mode caused session routing failures
 
 **修复内容 / Fix**：
+
 - 将 Gateway 请求中的 `model` 参数从 `'default'` 更正为 `'main'`  
   Corrected `model` parameter in Gateway requests from `'default'` to `'main'`
 - 确保正确的 Agent 路由和会话管理  
@@ -28,6 +29,7 @@ Affects all users using stream mode. After the fix, Agent routing will work corr
 Multiple DingTalk bots binding to different Agents failed to route correctly
 
 **修复内容 / Fix**：
+
 - 修复多 Agent 路由机制，确保多个钉钉机器人可以正确绑定到不同的 Agent  
   Fixed multi-Agent routing mechanism, ensuring multiple DingTalk bots can correctly bind to different Agents
 - 改进会话隔离和路由逻辑  

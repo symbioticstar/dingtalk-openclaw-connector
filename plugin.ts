@@ -5,24 +5,25 @@
  * 完整接入 Moltbot 消息处理管道。
  */
 
-import { DWClient, TOPIC_ROBOT } from 'dingtalk-stream';
-import axios from 'axios';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import type { ClawdbotPluginApi, PluginRuntime, ClawdbotConfig } from 'clawdbot/plugin-sdk';
+import { DWClient, TOPIC_ROBOT } from "dingtalk-stream";
+import axios from "axios";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+import type { ClawdbotPluginApi, PluginRuntime, ClawdbotConfig } from "clawdbot/plugin-sdk";
 
 // ============ 常量 ============
 
-export const id = 'dingtalk-connector';
+export const id = "dingtalk-connector";
 
 /** 默认账号 ID，用于标记单账号模式（无 accounts 配置）时的内部标识，映射到 'main' agent */
-const DEFAULT_ACCOUNT_ID = '__default__';
+const DEFAULT_ACCOUNT_ID = "__default__";
 
 let runtime: PluginRuntime | null = null;
 
 function getRuntime(): PluginRuntime {
-  if (!runtime) throw new Error('DingTalk runtime not initialized');
+  if (!runtime) throw new Error("DingTalk runtime not initialized");
   return runtime;
 }
 
@@ -61,14 +62,14 @@ function markMessageProcessed(messageId: string): void {
 }
 
 /** 新会话触发命令 */
-const NEW_SESSION_COMMANDS = ['/new', '/reset', '/clear', '新会话', '重新开始', '清空对话'];
+const NEW_SESSION_COMMANDS = ["/new", "/reset", "/clear", "新会话", "重新开始", "清空对话"];
 
 /** 检查消息是否是新会话命令 */
 function normalizeSlashCommand(text: string): string {
   const trimmed = text.trim();
   const lower = trimmed.toLowerCase();
-  if (NEW_SESSION_COMMANDS.some(cmd => lower === cmd.toLowerCase())) {
-    return '/new';
+  if (NEW_SESSION_COMMANDS.some((cmd) => lower === cmd.toLowerCase())) {
+    return "/new";
   }
   return text;
 }
@@ -78,9 +79,9 @@ function normalizeSlashCommand(text: string): string {
  * 遵循 OpenClaw session.dmScope 机制，让 Gateway 根据配置自动处理会话隔离
  */
 interface SessionContext {
-  channel: 'dingtalk-connector';
+  channel: "dingtalk-connector";
   accountId: string;
-  chatType: 'direct' | 'group';
+  chatType: "direct" | "group";
   peerId: string;
   conversationId?: string;
   senderName?: string;
@@ -106,17 +107,26 @@ function buildSessionContext(params: {
   conversationId?: string;
   groupSubject?: string;
   separateSessionByConversation?: boolean;
-  groupSessionScope?: 'group' | 'group_sender';
+  groupSessionScope?: "group" | "group_sender";
 }): SessionContext {
-  const { accountId, senderId, senderName, conversationType, conversationId, groupSubject, separateSessionByConversation, groupSessionScope } = params;
-  const isDirect = conversationType === '1';
+  const {
+    accountId,
+    senderId,
+    senderName,
+    conversationType,
+    conversationId,
+    groupSubject,
+    separateSessionByConversation,
+    groupSessionScope,
+  } = params;
+  const isDirect = conversationType === "1";
 
   // separateSessionByConversation=false 时，不区分单聊/群聊，按用户维度维护 session
   if (separateSessionByConversation === false) {
     return {
-      channel: 'dingtalk-connector',
+      channel: "dingtalk-connector",
       accountId,
-      chatType: isDirect ? 'direct' : 'group',
+      chatType: isDirect ? "direct" : "group",
       peerId: senderId, // 只用 senderId，不区分会话
       senderName,
     };
@@ -126,21 +136,21 @@ function buildSessionContext(params: {
   if (isDirect) {
     // 单聊：peerId 为发送者 ID，由 OpenClaw Gateway 根据 dmScope 配置处理
     return {
-      channel: 'dingtalk-connector',
+      channel: "dingtalk-connector",
       accountId,
-      chatType: 'direct',
+      chatType: "direct",
       peerId: senderId,
       senderName,
     };
   }
 
   // 群聊：根据 groupSessionScope 配置决定会话隔离策略
-  if (groupSessionScope === 'group_sender') {
+  if (groupSessionScope === "group_sender") {
     // 群内每个用户独立会话
     return {
-      channel: 'dingtalk-connector',
+      channel: "dingtalk-connector",
       accountId,
-      chatType: 'group',
+      chatType: "group",
       peerId: `${conversationId}:${senderId}`,
       conversationId,
       senderName,
@@ -150,9 +160,9 @@ function buildSessionContext(params: {
 
   // 默认：整个群共享一个会话
   return {
-    channel: 'dingtalk-connector',
+    channel: "dingtalk-connector",
     accountId,
-    chatType: 'group',
+    chatType: "group",
     peerId: conversationId || senderId,
     conversationId,
     senderName,
@@ -171,20 +181,20 @@ async function getAccessToken(config: any): Promise<string> {
     return accessToken;
   }
 
-  const response = await axios.post('https://api.dingtalk.com/v1.0/oauth2/accessToken', {
+  const response = await axios.post("https://api.dingtalk.com/v1.0/oauth2/accessToken", {
     appKey: config.clientId,
     appSecret: config.clientSecret,
   });
 
   accessToken = response.data.accessToken;
-  accessTokenExpiry = now + (response.data.expireIn * 1000);
+  accessTokenExpiry = now + response.data.expireIn * 1000;
   return accessToken!;
 }
 
 // ============ 配置工具 ============
 
 function getConfig(cfg: ClawdbotConfig) {
-  return (cfg?.channels as any)?.['dingtalk-connector'] || {};
+  return (cfg?.channels as any)?.["dingtalk-connector"] || {};
 }
 
 function isConfigured(cfg: ClawdbotConfig): boolean {
@@ -196,7 +206,7 @@ function isConfigured(cfg: ClawdbotConfig): boolean {
 
 async function getOapiAccessToken(config: any): Promise<string | null> {
   try {
-    const resp = await axios.get('https://oapi.dingtalk.com/gettoken', {
+    const resp = await axios.get("https://oapi.dingtalk.com/gettoken", {
       params: { appkey: config.clientId, appsecret: config.clientSecret },
     });
     if (resp.data?.errcode === 0) return resp.data.access_token;
@@ -219,7 +229,7 @@ async function getUnionId(staffId: string, config: any, log?: any): Promise<stri
   try {
     const token = await getOapiAccessToken(config);
     if (!token) {
-      log?.error?.('[DingTalk] getUnionId: 无法获取 oapi access_token');
+      log?.error?.("[DingTalk] getUnionId: 无法获取 oapi access_token");
       return null;
     }
     const resp = await axios.get(`${DINGTALK_OAPI}/user/get`, {
@@ -338,7 +348,8 @@ function buildMediaSystemPrompt(): string {
  * - ![alt](C:\Users\xxx\photo.jpg)
  * - ![alt](C:/Users/xxx/photo.jpg)
  */
-const LOCAL_IMAGE_RE = /!\[([^\]]*)\]\(((?:file:\/\/\/|MEDIA:|attachment:\/\/\/)[^)]+|\/(?:tmp|var|private|Users|home|root)[^)]+|[A-Za-z]:[\\/ ][^)]+)\)/g;
+const LOCAL_IMAGE_RE =
+  /!\[([^\]]*)\]\(((?:file:\/\/\/|MEDIA:|attachment:\/\/\/)[^)]+|\/(?:tmp|var|private|Users|home|root)[^)]+|[A-Za-z]:[\\/ ][^)]+)\)/g;
 
 /**
  * 匹配纯文本中的本地图片路径（不在 markdown 图片语法中，跨平台）：
@@ -354,14 +365,15 @@ const LOCAL_IMAGE_RE = /!\[([^\]]*)\]\(((?:file:\/\/\/|MEDIA:|attachment:\/\/\/)
  * - `C:/temp/image.jpg`
  * 支持 backtick 包裹: `path`
  */
-const BARE_IMAGE_PATH_RE = /`?((?:\/(?:tmp|var|private|Users|home|root)\/[^\s`'",)]+|[A-Za-z]:[\\/][^\s`'",)]+)\.(?:png|jpg|jpeg|gif|bmp|webp))`?/gi;
+const BARE_IMAGE_PATH_RE =
+  /`?((?:\/(?:tmp|var|private|Users|home|root)\/[^\s`'",)]+|[A-Za-z]:[\\/][^\s`'",)]+)\.(?:png|jpg|jpeg|gif|bmp|webp))`?/gi;
 
 /** 去掉 file:// / MEDIA: / attachment:// 前缀，得到实际的绝对路径 */
 function toLocalPath(raw: string): string {
   let p = raw;
-  if (p.startsWith('file://')) p = p.replace('file://', '');
-  else if (p.startsWith('MEDIA:')) p = p.replace('MEDIA:', '');
-  else if (p.startsWith('attachment://')) p = p.replace('attachment://', '');
+  if (p.startsWith("file://")) p = p.replace("file://", "");
+  else if (p.startsWith("MEDIA:")) p = p.replace("MEDIA:", "");
+  else if (p.startsWith("attachment://")) p = p.replace("attachment://", "");
 
   // 解码 URL 编码的路径（如中文字符 %E5%9B%BE → 图）
   try {
@@ -383,14 +395,12 @@ function toLocalPath(raw: string): string {
  */
 async function uploadMediaToDingTalk(
   filePath: string,
-  mediaType: 'image' | 'file' | 'video' | 'voice',
+  mediaType: "image" | "file" | "video" | "voice",
   oapiToken: string,
   maxSize: number = 20 * 1024 * 1024,
   log?: any,
 ): Promise<string | null> {
   try {
-    const FormData = (await import('form-data')).default;
-
     const absPath = toLocalPath(filePath);
     if (!fs.existsSync(absPath)) {
       log?.warn?.(`[DingTalk][${mediaType}] 文件不存在: ${absPath}`);
@@ -398,7 +408,7 @@ async function uploadMediaToDingTalk(
     }
 
     // 检查文件大小
-    const stats = fs.statSync(absPath);
+    const stats = await fsp.stat(absPath);
     const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
     if (stats.size > maxSize) {
@@ -407,17 +417,18 @@ async function uploadMediaToDingTalk(
       return null;
     }
 
-    const form = new FormData();
-    form.append('media', fs.createReadStream(absPath), {
-      filename: path.basename(absPath),
-      contentType: mediaType === 'image' ? 'image/jpeg' : 'application/octet-stream',
+    const fileBuffer = await fsp.readFile(absPath);
+    const blob = new Blob([fileBuffer], {
+      type: mediaType === "image" ? "image/jpeg" : "application/octet-stream",
     });
+    const form = new FormData();
+    form.append("media", blob, path.basename(absPath));
 
     log?.info?.(`[DingTalk][${mediaType}] 上传文件: ${absPath} (${fileSizeMB}MB)`);
     const resp = await axios.post(
       `https://oapi.dingtalk.com/media/upload?access_token=${oapiToken}&type=${mediaType}`,
       form,
-      { headers: form.getHeaders(), timeout: 60_000 },
+      { timeout: 60_000 },
     );
 
     const mediaId = resp.data?.media_id;
@@ -434,11 +445,7 @@ async function uploadMediaToDingTalk(
 }
 
 /** 扫描内容中的本地图片路径，上传到钉钉并替换为 media_id */
-async function processLocalImages(
-  content: string,
-  oapiToken: string | null,
-  log?: any,
-): Promise<string> {
+async function processLocalImages(content: string, oapiToken: string | null, log?: any): Promise<string> {
   if (!oapiToken) {
     log?.warn?.(`[DingTalk][Media] 无 oapiToken，跳过图片后处理`);
     return content;
@@ -453,8 +460,8 @@ async function processLocalImages(
     for (const match of mdMatches) {
       const [fullMatch, alt, rawPath] = match;
       // 清理转义字符（AI 可能会对含空格的路径添加 \ ）
-      const cleanPath = rawPath.replace(/\\ /g, ' ');
-      const mediaId = await uploadMediaToDingTalk(cleanPath, 'image', oapiToken, 20 * 1024 * 1024, log);
+      const cleanPath = rawPath.replace(/\\ /g, " ");
+      const mediaId = await uploadMediaToDingTalk(cleanPath, "image", oapiToken, 20 * 1024 * 1024, log);
       if (mediaId) {
         result = result.replace(fullMatch, `![${alt}](${mediaId})`);
       }
@@ -464,11 +471,11 @@ async function processLocalImages(
   // 第二步：匹配纯文本中的本地图片路径（如 `/var/folders/.../xxx.png`）
   // 排除已被 markdown 图片语法包裹的路径
   const bareMatches = [...result.matchAll(BARE_IMAGE_PATH_RE)];
-  const newBareMatches = bareMatches.filter(m => {
+  const newBareMatches = bareMatches.filter((m) => {
     // 检查这个路径是否已经在 ![...](...) 中
     const idx = m.index!;
     const before = result.slice(Math.max(0, idx - 10), idx);
-    return !before.includes('](');
+    return !before.includes("](");
   });
 
   if (newBareMatches.length > 0) {
@@ -477,7 +484,7 @@ async function processLocalImages(
     for (const match of newBareMatches.reverse()) {
       const [fullMatch, rawPath] = match;
       log?.info?.(`[DingTalk][Media] 纯文本图片: "${fullMatch}" -> path="${rawPath}"`);
-      const mediaId = await uploadMediaToDingTalk(rawPath, 'image', oapiToken, 20 * 1024 * 1024, log);
+      const mediaId = await uploadMediaToDingTalk(rawPath, "image", oapiToken, 20 * 1024 * 1024, log);
       if (mediaId) {
         const replacement = `![](${mediaId})`;
         result = result.slice(0, match.index!) + result.slice(match.index!).replace(fullMatch, replacement);
@@ -530,13 +537,10 @@ interface VideoMetadata {
 /**
  * 提取视频元数据（时长、分辨率）
  */
-async function extractVideoMetadata(
-  filePath: string,
-  log?: any,
-): Promise<VideoMetadata | null> {
+async function extractVideoMetadata(filePath: string, log?: any): Promise<VideoMetadata | null> {
   try {
-    const ffmpeg = require('fluent-ffmpeg');
-    const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+    const { default: ffmpeg } = await import("fluent-ffmpeg");
+    const { path: ffmpegPath } = await import("@ffmpeg-installer/ffmpeg");
     ffmpeg.setFfmpegPath(ffmpegPath);
 
     return new Promise((resolve) => {
@@ -546,7 +550,7 @@ async function extractVideoMetadata(
           return resolve({ duration: 0, width: 0, height: 0 });
         }
 
-        const videoStream = metadata.streams.find((s: any) => s.codec_type === 'video');
+        const videoStream = metadata.streams.find((s: any) => s.codec_type === "video");
         if (!videoStream) {
           log?.warn?.(`[DingTalk][Video] 未找到视频流`);
           return resolve({ duration: 0, width: 0, height: 0 });
@@ -571,14 +575,10 @@ async function extractVideoMetadata(
 /**
  * 生成视频封面图（第1秒截图）
  */
-async function extractVideoThumbnail(
-  videoPath: string,
-  outputPath: string,
-  log?: any,
-): Promise<string | null> {
+async function extractVideoThumbnail(videoPath: string, outputPath: string, log?: any): Promise<string | null> {
   try {
-    const ffmpeg = require('fluent-ffmpeg');
-    const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+    const { default: ffmpeg } = await import("fluent-ffmpeg");
+    const { path: ffmpegPath } = await import("@ffmpeg-installer/ffmpeg");
     ffmpeg.setFfmpegPath(ffmpegPath);
 
     return new Promise((resolve) => {
@@ -587,14 +587,14 @@ async function extractVideoThumbnail(
           count: 1,
           folder: path.dirname(outputPath),
           filename: path.basename(outputPath),
-          timemarks: ['1'],
-          size: '?x360',
+          timemarks: ["1"],
+          size: "?x360",
         })
-        .on('end', () => {
+        .on("end", () => {
           log?.info?.(`[DingTalk][Video] 封面生成成功: ${outputPath}`);
           resolve(outputPath);
         })
-        .on('error', (err: any) => {
+        .on("error", (err: any) => {
           log?.error?.(`[DingTalk][Video] 封面生成失败: ${err.message}`);
           resolve(null);
         });
@@ -622,11 +622,11 @@ async function sendVideoMessage(
     const fileName = path.basename(videoInfo.path);
 
     const payload = {
-      msgtype: 'video',
+      msgtype: "video",
       video: {
         duration: metadata.duration.toString(),
         videoMediaId: videoMediaId,
-        videoType: 'mp4',
+        videoType: "mp4",
         picMediaId: picMediaId,
       },
     };
@@ -634,8 +634,8 @@ async function sendVideoMessage(
     log?.info?.(`[DingTalk][Video] 发送视频消息: ${fileName}, payload: ${JSON.stringify(payload)}`);
     const resp = await axios.post(sessionWebhook, payload, {
       headers: {
-        'x-acs-dingtalk-access-token': oapiToken,
-        'Content-Type': 'application/json',
+        "x-acs-dingtalk-access-token": oapiToken,
+        "Content-Type": "application/json",
       },
       timeout: 10_000,
     });
@@ -653,7 +653,7 @@ async function sendVideoMessage(
 /**
  * 视频后处理主函数
  * 返回移除标记后的内容，并附带视频处理的状态提示
- * 
+ *
  * @param useProactiveApi 是否使用主动消息 API（用于 AI Card 场景）
  * @param target 主动 API 需要的目标信息（useProactiveApi=true 时必须提供）
  */
@@ -666,7 +666,7 @@ async function processVideoMarkers(
   useProactiveApi: boolean = false,
   target?: AICardTarget,
 ): Promise<string> {
-  const logPrefix = useProactiveApi ? '[DingTalk][Video][Proactive]' : '[DingTalk][Video]';
+  const logPrefix = useProactiveApi ? "[DingTalk][Video][Proactive]" : "[DingTalk][Video]";
 
   if (!oapiToken) {
     log?.warn?.(`${logPrefix} 无 oapiToken，跳过视频处理`);
@@ -685,7 +685,7 @@ async function processVideoMarkers(
         videoInfos.push(videoInfo);
         log?.info?.(`${logPrefix} 提取到视频: ${videoInfo.path}`);
       } else {
-        invalidVideos.push(videoInfo.path || '未知路径');
+        invalidVideos.push(videoInfo.path || "未知路径");
         log?.warn?.(`${logPrefix} 视频文件不存在: ${videoInfo.path}`);
       }
     } catch (err: any) {
@@ -695,11 +695,11 @@ async function processVideoMarkers(
 
   if (videoInfos.length === 0 && invalidVideos.length === 0) {
     log?.info?.(`${logPrefix} 未检测到视频标记`);
-    return content.replace(VIDEO_MARKER_PATTERN, '').trim();
+    return content.replace(VIDEO_MARKER_PATTERN, "").trim();
   }
 
   // 先移除所有视频标记，保留其他文本内容
-  let cleanedContent = content.replace(VIDEO_MARKER_PATTERN, '').trim();
+  let cleanedContent = content.replace(VIDEO_MARKER_PATTERN, "").trim();
 
   // 收集处理结果状态
   const statusMessages: string[] = [];
@@ -716,7 +716,7 @@ async function processVideoMarkers(
   // 逐个处理视频
   for (const videoInfo of videoInfos) {
     const fileName = path.basename(videoInfo.path);
-    let thumbnailPath = '';
+    let thumbnailPath = "";
     try {
       // 1. 提取元数据
       const metadata = await extractVideoMetadata(videoInfo.path, log);
@@ -736,7 +736,7 @@ async function processVideoMarkers(
       }
 
       // 3. 上传视频
-      const videoMediaId = await uploadMediaToDingTalk(videoInfo.path, 'video', oapiToken, MAX_VIDEO_SIZE, log);
+      const videoMediaId = await uploadMediaToDingTalk(videoInfo.path, "video", oapiToken, MAX_VIDEO_SIZE, log);
       if (!videoMediaId) {
         log?.warn?.(`${logPrefix} 视频上传失败: ${videoInfo.path}`);
         statusMessages.push(`⚠️ 视频上传失败: ${fileName}（文件可能超过 20MB 限制）`);
@@ -744,7 +744,7 @@ async function processVideoMarkers(
       }
 
       // 4. 上传封面
-      const picMediaId = await uploadMediaToDingTalk(thumbnailPath, 'image', oapiToken, 20 * 1024 * 1024, log);
+      const picMediaId = await uploadMediaToDingTalk(thumbnailPath, "image", oapiToken, 20 * 1024 * 1024, log);
       if (!picMediaId) {
         log?.warn?.(`${logPrefix} 封面上传失败: ${thumbnailPath}`);
         statusMessages.push(`⚠️ 视频封面上传失败: ${fileName}`);
@@ -767,7 +767,7 @@ async function processVideoMarkers(
       // 统一清理临时文件
       if (thumbnailPath) {
         try {
-          fs.unlinkSync(thumbnailPath);
+          await fsp.unlink(thumbnailPath);
         } catch {
           // 文件可能不存在，忽略删除错误
         }
@@ -777,18 +777,15 @@ async function processVideoMarkers(
 
   // 将状态信息附加到清理后的内容
   if (statusMessages.length > 0) {
-    const statusText = statusMessages.join('\n');
-    cleanedContent = cleanedContent
-      ? `${cleanedContent}\n\n${statusText}`
-      : statusText;
+    const statusText = statusMessages.join("\n");
+    cleanedContent = cleanedContent ? `${cleanedContent}\n\n${statusText}` : statusText;
   }
 
   return cleanedContent;
 }
 
 /** 音频文件扩展名 */
-const AUDIO_EXTENSIONS = ['mp3', 'wav', 'amr', 'ogg', 'aac', 'flac', 'm4a'];
-
+const AUDIO_EXTENSIONS = ["mp3", "wav", "amr", "ogg", "aac", "flac", "m4a"];
 
 /** 判断是否为音频文件 */
 function isAudioFile(fileType: string): boolean {
@@ -800,9 +797,9 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 /** 文件信息接口 */
 interface FileInfo {
-  path: string;        // 本地文件路径
-  fileName: string;    // 文件名
-  fileType: string;    // 文件类型（扩展名）
+  path: string; // 本地文件路径
+  fileName: string; // 文件名
+  fileType: string; // 文件类型（扩展名）
 }
 
 /**
@@ -828,10 +825,9 @@ function extractFileMarkers(content: string, log?: any): { cleanedContent: strin
   }
 
   // 移除文件标记，返回清理后的内容
-  const cleanedContent = content.replace(FILE_MARKER_PATTERN, '').trim();
+  const cleanedContent = content.replace(FILE_MARKER_PATTERN, "").trim();
   return { cleanedContent, fileInfos };
 }
-
 
 /**
  * 发送文件消息到钉钉
@@ -846,7 +842,7 @@ async function sendFileMessage(
 ): Promise<void> {
   try {
     const fileMessage = {
-      msgtype: 'file',
+      msgtype: "file",
       file: {
         mediaId: mediaId,
         fileName: fileInfo.fileName,
@@ -857,8 +853,8 @@ async function sendFileMessage(
     log?.info?.(`[DingTalk][File] 发送文件消息: ${fileInfo.fileName}`);
     const resp = await axios.post(sessionWebhook, fileMessage, {
       headers: {
-        'x-acs-dingtalk-access-token': oapiToken,
-        'Content-Type': 'application/json',
+        "x-acs-dingtalk-access-token": oapiToken,
+        "Content-Type": "application/json",
       },
       timeout: 10_000,
     });
@@ -877,61 +873,49 @@ async function sendFileMessage(
  * 获取 ffprobe 可执行文件路径
  * 优先级: @ffprobe-installer/ffprobe > FFPROBE_PATH 环境变量 > 系统 PATH
  */
-function getFfprobePath(): string {
+async function getFfprobePath(): Promise<string> {
   // 1. 尝试 @ffprobe-installer/ffprobe 包
   try {
-    const ffprobePath = require('@ffprobe-installer/ffprobe').path;
+    const { path: ffprobePath } = await import("@ffprobe-installer/ffprobe");
     if (ffprobePath) return ffprobePath;
-  } catch { /* 未安装，跳过 */ }
+  } catch {
+    /* 未安装，跳过 */
+  }
 
   // 2. 尝试环境变量
   if (process.env.FFPROBE_PATH) return process.env.FFPROBE_PATH;
 
   // 3. fallback 到系统 PATH
-  return 'ffprobe';
+  return "ffprobe";
 }
 
 /**
  * 提取音频文件时长（毫秒）
  * 使用 ffprobe CLI 直接获取，避免 fluent-ffmpeg 在部分运行环境中回调不触发的问题
  */
-async function extractAudioDuration(
-  filePath: string,
-  log?: any,
-): Promise<number | null> {
+async function extractAudioDuration(filePath: string, log?: any): Promise<number | null> {
   try {
-    const { execFile } = await import('child_process');
-    const ffprobeBin = getFfprobePath();
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execFileAsync = promisify(execFile);
+    const ffprobeBin = await getFfprobePath();
 
-    return new Promise((resolve) => {
-      execFile(ffprobeBin, [
-        '-v', 'quiet',
-        '-print_format', 'json',
-        '-show_format',
-        filePath,
-      ], { timeout: 10_000 }, (err: any, stdout: string, _stderr: string) => {
-        if (err) {
-          log?.error?.(`[DingTalk][Audio] ffprobe 执行失败 (${ffprobeBin}): ${err.message}`);
-          return resolve(null);
-        }
+    const { stdout } = await execFileAsync(
+      ffprobeBin,
+      ["-v", "quiet", "-print_format", "json", "-show_format", filePath],
+      { timeout: 10_000 },
+    );
 
-        try {
-          const parsed = JSON.parse(stdout);
-          const durationSec = parseFloat(parsed?.format?.duration);
-          if (isNaN(durationSec)) {
-            log?.warn?.(`[DingTalk][Audio] 无法解析音频时长，ffprobe 输出: ${stdout.slice(0, 200)}`);
-            return resolve(null);
-          }
+    const parsed = JSON.parse(stdout);
+    const durationSec = parseFloat(parsed?.format?.duration);
+    if (isNaN(durationSec)) {
+      log?.warn?.(`[DingTalk][Audio] 无法解析音频时长，ffprobe 输出: ${stdout.slice(0, 200)}`);
+      return null;
+    }
 
-          const durationMs = Math.floor(durationSec * 1000);
-          log?.info?.(`[DingTalk][Audio] 音频时长: ${durationMs}ms (${durationSec}s)`);
-          resolve(durationMs);
-        } catch (parseErr: any) {
-          log?.error?.(`[DingTalk][Audio] ffprobe 输出解析失败: ${parseErr.message}`);
-          resolve(null);
-        }
-      });
-    });
+    const durationMs = Math.floor(durationSec * 1000);
+    log?.info?.(`[DingTalk][Audio] 音频时长: ${durationMs}ms (${durationSec}s)`);
+    return durationMs;
   } catch (err: any) {
     log?.error?.(`[DingTalk][Audio] extractAudioDuration 异常: ${err.message}`);
     return null;
@@ -952,9 +936,9 @@ async function sendAudioMessage(
 ): Promise<void> {
   try {
     // 钉钉语音消息格式
-    const actualDuration = (durationMs && durationMs > 0) ? durationMs.toString() : '60000';
+    const actualDuration = durationMs && durationMs > 0 ? durationMs.toString() : "60000";
     const audioMessage = {
-      msgtype: 'voice',
+      msgtype: "voice",
       voice: {
         mediaId: mediaId,
         duration: actualDuration,
@@ -964,8 +948,8 @@ async function sendAudioMessage(
     log?.info?.(`[DingTalk][Audio] 发送语音消息: ${fileInfo.fileName}`);
     const resp = await axios.post(sessionWebhook, audioMessage, {
       headers: {
-        'x-acs-dingtalk-access-token': oapiToken,
-        'Content-Type': 'application/json',
+        "x-acs-dingtalk-access-token": oapiToken,
+        "Content-Type": "application/json",
       },
       timeout: 10_000,
     });
@@ -983,7 +967,7 @@ async function sendAudioMessage(
 /**
  * 处理文件标记：提取、上传、发送独立消息
  * 返回移除标记后的内容，并附带文件处理的状态提示
- * 
+ *
  * @param useProactiveApi 是否使用主动消息 API（用于 AI Card 场景，避免 sessionWebhook 失效问题）
  * @param target 主动 API 需要的目标信息（useProactiveApi=true 时必须提供）
  */
@@ -1008,7 +992,9 @@ async function processFileMarkers(
     return cleanedContent;
   }
 
-  log?.info?.(`[DingTalk][File] 检测到 ${fileInfos.length} 个文件标记，开始处理... (useProactiveApi=${useProactiveApi})`);
+  log?.info?.(
+    `[DingTalk][File] 检测到 ${fileInfos.length} 个文件标记，开始处理... (useProactiveApi=${useProactiveApi})`,
+  );
 
   const statusMessages: string[] = [];
 
@@ -1020,7 +1006,7 @@ async function processFileMarkers(
       statusMessages.push(`⚠️ 文件不存在: ${fileInfo.fileName}`);
       continue;
     }
-    const stats = fs.statSync(absPath);
+    const stats = await fsp.stat(absPath);
     if (stats.size > MAX_FILE_SIZE) {
       const sizeMB = (stats.size / (1024 * 1024)).toFixed(1);
       const maxMB = (MAX_FILE_SIZE / (1024 * 1024)).toFixed(0);
@@ -1031,7 +1017,7 @@ async function processFileMarkers(
     // 区分音频文件和普通文件
     if (isAudioFile(fileInfo.fileType)) {
       // 音频文件使用 voice 类型上传
-      const mediaId = await uploadMediaToDingTalk(fileInfo.path, 'voice', oapiToken, MAX_FILE_SIZE, log);
+      const mediaId = await uploadMediaToDingTalk(fileInfo.path, "voice", oapiToken, MAX_FILE_SIZE, log);
       if (mediaId) {
         // 提取音频实际时长
         const audioDurationMs = await extractAudioDuration(fileInfo.path, log);
@@ -1040,7 +1026,15 @@ async function processFileMarkers(
           await sendAudioProactive(config, target, fileInfo, mediaId, log, audioDurationMs ?? undefined);
         } else {
           // 使用 sessionWebhook（传统被动回复场景）
-          await sendAudioMessage(config, sessionWebhook, fileInfo, mediaId, oapiToken, log, audioDurationMs ?? undefined);
+          await sendAudioMessage(
+            config,
+            sessionWebhook,
+            fileInfo,
+            mediaId,
+            oapiToken,
+            log,
+            audioDurationMs ?? undefined,
+          );
         }
         statusMessages.push(`✅ 音频已发送: ${fileInfo.fileName}`);
       } else {
@@ -1049,7 +1043,7 @@ async function processFileMarkers(
       }
     } else {
       // 普通文件
-      const mediaId = await uploadMediaToDingTalk(fileInfo.path, 'file', oapiToken, MAX_FILE_SIZE, log);
+      const mediaId = await uploadMediaToDingTalk(fileInfo.path, "file", oapiToken, MAX_FILE_SIZE, log);
       if (mediaId) {
         if (useProactiveApi && target) {
           // 使用主动消息 API（适用于 AI Card 场景）
@@ -1068,10 +1062,8 @@ async function processFileMarkers(
 
   // 将状态信息附加到清理后的内容
   if (statusMessages.length > 0) {
-    const statusText = statusMessages.join('\n');
-    return cleanedContent
-      ? `${cleanedContent}\n\n${statusText}`
-      : statusText;
+    const statusText = statusMessages.join("\n");
+    return cleanedContent ? `${cleanedContent}\n\n${statusText}` : statusText;
   }
 
   return cleanedContent;
@@ -1079,17 +1071,17 @@ async function processFileMarkers(
 
 // ============ AI Card Streaming ============
 
-const DINGTALK_API = 'https://api.dingtalk.com';
-const DINGTALK_OAPI = 'https://oapi.dingtalk.com';
-const AI_CARD_TEMPLATE_ID = '02fcf2f4-5e02-4a85-b672-46d1f715543e.schema';
+const DINGTALK_API = "https://api.dingtalk.com";
+const DINGTALK_OAPI = "https://oapi.dingtalk.com";
+const AI_CARD_TEMPLATE_ID = "02fcf2f4-5e02-4a85-b672-46d1f715543e.schema";
 
 // flowStatus 值与 Python SDK AICardStatus 一致（cardParamMap 的值必须是字符串）
 const AICardStatus = {
-  PROCESSING: '1',
-  INPUTING: '2',
-  FINISHED: '3',
-  EXECUTING: '4',
-  FAILED: '5',
+  PROCESSING: "1",
+  INPUTING: "2",
+  FINISHED: "3",
+  EXECUTING: "4",
+  FAILED: "5",
 } as const;
 
 interface AICardInstance {
@@ -1102,19 +1094,17 @@ interface AICardInstance {
  * 创建 AI Card 实例（被动回复场景）
  * 从钉钉回调 data 中提取目标信息，委托给通用函数
  */
-async function createAICard(
-  config: any,
-  data: any,
-  log?: any,
-): Promise<AICardInstance | null> {
-  const isGroup = data.conversationType === '2';
+async function createAICard(config: any, data: any, log?: any): Promise<AICardInstance | null> {
+  const isGroup = data.conversationType === "2";
 
-  log?.info?.(`[DingTalk][AICard] conversationType=${data.conversationType}, conversationId=${data.conversationId}, senderStaffId=${data.senderStaffId}, senderId=${data.senderId}`);
+  log?.info?.(
+    `[DingTalk][AICard] conversationType=${data.conversationType}, conversationId=${data.conversationId}, senderStaffId=${data.senderStaffId}, senderId=${data.senderId}`,
+  );
 
   // 构建通用目标
   const target: AICardTarget = isGroup
-    ? { type: 'group', openConversationId: data.conversationId }
-    : { type: 'user', userId: data.senderStaffId || data.senderId };
+    ? { type: "group", openConversationId: data.conversationId }
+    : { type: "user", userId: data.senderStaffId || data.senderId };
 
   return createAICardForTarget(config, target, log);
 }
@@ -1127,7 +1117,7 @@ async function createAICard(
  * 支持缩进表格（行首有空白字符）。
  */
 function ensureTableBlankLines(text: string): string {
-  const lines = text.split('\n');
+  const lines = text.split("\n");
   const result: string[] = [];
 
   // 匹配表格分隔行 (例如 | --- | --- | 或 --- | ---)
@@ -1135,11 +1125,11 @@ function ensureTableBlankLines(text: string): string {
   // 匹配包含竖线的表格行
   const tableRowRegex = /^\s*\|?.*\|.*\|?\s*$/;
 
-  const isDivider = (line: string) => line.includes('|') && tableDividerRegex.test(line);
+  const isDivider = (line: string) => line.includes("|") && tableDividerRegex.test(line);
 
   for (let i = 0; i < lines.length; i++) {
     const currentLine = lines[i];
-    const nextLine = lines[i + 1] ?? '';
+    const nextLine = lines[i + 1] ?? "";
 
     // 逻辑：
     // 1. 当前行看起来像表头（包含 |）
@@ -1148,14 +1138,16 @@ function ensureTableBlankLines(text: string): string {
     if (
       tableRowRegex.test(currentLine) &&
       isDivider(nextLine) &&
-      i > 0 && lines[i - 1].trim() !== '' && !tableRowRegex.test(lines[i - 1])
+      i > 0 &&
+      lines[i - 1].trim() !== "" &&
+      !tableRowRegex.test(lines[i - 1])
     ) {
-      result.push('');
+      result.push("");
     }
 
     result.push(currentLine);
   }
-  return result.join('\n');
+  return result.join("\n");
 }
 
 // 流式更新 AI Card 内容
@@ -1172,10 +1164,10 @@ async function streamAICard(
       cardData: {
         cardParamMap: {
           flowStatus: AICardStatus.INPUTING,
-          msgContent: '',
-          staticMsgContent: '',
+          msgContent: "",
+          staticMsgContent: "",
           sys_full_json_obj: JSON.stringify({
-            order: ['msgContent'],  // 只声明实际使用的字段，避免部分客户端显示空占位
+            order: ["msgContent"], // 只声明实际使用的字段，避免部分客户端显示空占位
           }),
         },
       },
@@ -1183,9 +1175,11 @@ async function streamAICard(
     log?.info?.(`[DingTalk][AICard] PUT /v1.0/card/instances (INPUTING) outTrackId=${card.cardInstanceId}`);
     try {
       const statusResp = await axios.put(`${DINGTALK_API}/v1.0/card/instances`, statusBody, {
-        headers: { 'x-acs-dingtalk-access-token': card.accessToken, 'Content-Type': 'application/json' },
+        headers: { "x-acs-dingtalk-access-token": card.accessToken, "Content-Type": "application/json" },
       });
-      log?.info?.(`[DingTalk][AICard] INPUTING 响应: status=${statusResp.status} data=${JSON.stringify(statusResp.data)}`);
+      log?.info?.(
+        `[DingTalk][AICard] INPUTING 响应: status=${statusResp.status} data=${JSON.stringify(statusResp.data)}`,
+      );
     } catch (err: any) {
       log?.error?.(`[DingTalk][AICard] INPUTING 切换失败: ${err.message}, resp=${JSON.stringify(err.response?.data)}`);
       throw err;
@@ -1198,17 +1192,19 @@ async function streamAICard(
   const body = {
     outTrackId: card.cardInstanceId,
     guid: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    key: 'msgContent',
+    key: "msgContent",
     content: fixedContent,
-    isFull: true,  // 全量替换
+    isFull: true, // 全量替换
     isFinalize: finished,
     isError: false,
   };
 
-  log?.info?.(`[DingTalk][AICard] PUT /v1.0/card/streaming contentLen=${content.length} isFinalize=${finished} guid=${body.guid}`);
+  log?.info?.(
+    `[DingTalk][AICard] PUT /v1.0/card/streaming contentLen=${content.length} isFinalize=${finished} guid=${body.guid}`,
+  );
   try {
     const streamResp = await axios.put(`${DINGTALK_API}/v1.0/card/streaming`, body, {
-      headers: { 'x-acs-dingtalk-access-token': card.accessToken, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": card.accessToken, "Content-Type": "application/json" },
     });
     log?.info?.(`[DingTalk][AICard] streaming 响应: status=${streamResp.status}`);
   } catch (err: any) {
@@ -1218,11 +1214,7 @@ async function streamAICard(
 }
 
 // 完成 AI Card：先 streaming isFinalize 关闭流式通道，再 put_card_data 更新 FINISHED 状态
-async function finishAICard(
-  card: AICardInstance,
-  content: string,
-  log?: any,
-): Promise<void> {
+async function finishAICard(card: AICardInstance, content: string, log?: any): Promise<void> {
   const fixedContent = ensureTableBlankLines(content);
   log?.info?.(`[DingTalk][AICard] 开始 finish，最终内容长度=${fixedContent.length}`);
 
@@ -1236,21 +1228,23 @@ async function finishAICard(
       cardParamMap: {
         flowStatus: AICardStatus.FINISHED,
         msgContent: fixedContent,
-        staticMsgContent: '',
+        staticMsgContent: "",
         sys_full_json_obj: JSON.stringify({
-          order: ['msgContent'],  // 只声明实际使用的字段，避免部分客户端显示空占位
+          order: ["msgContent"], // 只声明实际使用的字段，避免部分客户端显示空占位
         }),
       },
-      cardUpdateOptions:{updateCardDataByKey:true}
+      cardUpdateOptions: { updateCardDataByKey: true },
     },
   };
 
   log?.info?.(`[DingTalk][AICard] PUT /v1.0/card/instances (FINISHED) outTrackId=${card.cardInstanceId}`);
   try {
     const finishResp = await axios.put(`${DINGTALK_API}/v1.0/card/instances`, body, {
-      headers: { 'x-acs-dingtalk-access-token': card.accessToken, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": card.accessToken, "Content-Type": "application/json" },
     });
-    log?.info?.(`[DingTalk][AICard] FINISHED 响应: status=${finishResp.status} data=${JSON.stringify(finishResp.data)}`);
+    log?.info?.(
+      `[DingTalk][AICard] FINISHED 响应: status=${finishResp.status} data=${JSON.stringify(finishResp.data)}`,
+    );
   } catch (err: any) {
     log?.error?.(`[DingTalk][AICard] FINISHED 更新失败: ${err.message}, resp=${JSON.stringify(err.response?.data)}`);
   }
@@ -1264,7 +1258,7 @@ interface BindingMatch {
   channel?: string;
   accountId?: string;
   peer?: {
-    kind?: 'direct' | 'group';
+    kind?: "direct" | "group";
     id?: string;
   };
 }
@@ -1291,20 +1285,15 @@ interface Binding {
  * @param log 日志对象
  * @returns 匹配到的 agentId
  */
-function resolveAgentIdByBindings(
-  accountId: string,
-  peerKind: 'direct' | 'group',
-  peerId: string,
-  log?: any,
-): string {
-  const defaultAgentId = accountId === DEFAULT_ACCOUNT_ID ? 'main' : accountId;
+function resolveAgentIdByBindings(accountId: string, peerKind: "direct" | "group", peerId: string, log?: any): string {
+  const defaultAgentId = accountId === DEFAULT_ACCOUNT_ID ? "main" : accountId;
 
   // 读取 OpenClaw 配置
   let bindings: Binding[] = [];
   try {
-    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+    const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
     if (fs.existsSync(configPath)) {
-      const configContent = fs.readFileSync(configPath, 'utf-8');
+      const configContent = fs.readFileSync(configPath, "utf-8");
       const config = JSON.parse(configContent);
       bindings = config.bindings || [];
     }
@@ -1319,25 +1308,22 @@ function resolveAgentIdByBindings(
   }
 
   // 筛选 channel='dingtalk-connector' 的 bindings
-  const channelBindings = bindings.filter(b =>
-    !b.match?.channel || b.match.channel === 'dingtalk-connector'
-  );
+  const channelBindings = bindings.filter((b) => !b.match?.channel || b.match.channel === "dingtalk-connector");
 
   if (channelBindings.length === 0) {
     log?.info?.(`[DingTalk][Bindings] 无匹配 channel 的 bindings，使用默认 agentId=${defaultAgentId}`);
     return defaultAgentId;
   }
 
-  log?.info?.(`[DingTalk][Bindings] 开始匹配: accountId=${accountId}, peerKind=${peerKind}, peerId=${peerId}, bindings数量=${channelBindings.length}`);
+  log?.info?.(
+    `[DingTalk][Bindings] 开始匹配: accountId=${accountId}, peerKind=${peerKind}, peerId=${peerId}, bindings数量=${channelBindings.length}`,
+  );
 
   // 按优先级匹配
   // 优先级1: peer.kind + peer.id 精确匹配
   for (const binding of channelBindings) {
     const match = binding.match || {};
-    if (match.peer?.kind === peerKind &&
-        match.peer?.id &&
-        match.peer.id !== '*' &&
-        match.peer.id === peerId) {
+    if (match.peer?.kind === peerKind && match.peer?.id && match.peer.id !== "*" && match.peer.id === peerId) {
       // 还需检查 accountId 是否匹配（如果指定了）
       if (match.accountId && match.accountId !== accountId) continue;
       log?.info?.(`[DingTalk][Bindings] 精确匹配 peer.id: agentId=${binding.agentId}`);
@@ -1348,7 +1334,7 @@ function resolveAgentIdByBindings(
   // 优先级2: peer.kind + peer.id='*' 通配匹配
   for (const binding of channelBindings) {
     const match = binding.match || {};
-    if (match.peer?.kind === peerKind && match.peer?.id === '*') {
+    if (match.peer?.kind === peerKind && match.peer?.id === "*") {
       if (match.accountId && match.accountId !== accountId) continue;
       log?.info?.(`[DingTalk][Bindings] 通配匹配 peer.kind=${peerKind}, peer.id=*: agentId=${binding.agentId}`);
       return binding.agentId || defaultAgentId;
@@ -1391,7 +1377,7 @@ interface GatewayOptions {
   userContent: string;
   systemPrompts: string[];
   sessionContext: SessionContext;
-  gatewayAuth?: string;  // token 或 password，都用 Bearer 格式
+  gatewayAuth?: string; // token 或 password，都用 Bearer 格式
   /** 记忆归属用户标识，用于 Gateway 区分记忆；sharedMemoryAcrossConversations=true 时传 accountId，false 时传 sessionContext JSON */
   memoryUser?: string;
   /** 本地图片文件路径列表，用于 OpenClaw AgentMediaPayload */
@@ -1399,7 +1385,7 @@ interface GatewayOptions {
   /** 自定义 Gateway URL（如通过 Nginx 代理），用于 TLS 等场景 */
   gatewayBaseUrl?: string;
   /** 会话类型：'direct'（单聊）或 'group'（群聊），用于 bindings 匹配 */
-  peerKind?: 'direct' | 'group';
+  peerKind?: "direct" | "group";
   /** 发送者 ID，用于 bindings 匹配 */
   peerId?: string;
   gatewayPort?: number;
@@ -1408,7 +1394,19 @@ interface GatewayOptions {
 
 async function* streamFromGateway(options: GatewayOptions, accountId: string): AsyncGenerator<string, void, unknown> {
   // 支持自定义 Gateway URL（如通过 Nginx 代理），用于 TLS 等场景
-  const { userContent, systemPrompts, sessionKey, gatewayAuth, gatewayBaseUrl, memoryUser, imageLocalPaths, peerKind, peerId, gatewayPort, log } = options;
+  const {
+    userContent,
+    systemPrompts,
+    sessionKey,
+    gatewayAuth,
+    gatewayBaseUrl,
+    memoryUser,
+    imageLocalPaths,
+    peerKind,
+    peerId,
+    gatewayPort,
+    log,
+  } = options;
   const rt = getRuntime();
   const port = gatewayPort || rt.gateway?.port || 18789;
   const gatewayUrl = gatewayBaseUrl
@@ -1417,71 +1415,76 @@ async function* streamFromGateway(options: GatewayOptions, accountId: string): A
 
   const messages: any[] = [];
   for (const prompt of systemPrompts) {
-    messages.push({ role: 'system', content: prompt });
+    messages.push({ role: "system", content: prompt });
   }
 
   // 如果有图片，在文本中嵌入本地文件路径（OpenClaw AgentMediaPayload 格式）
   let finalContent = userContent;
   if (imageLocalPaths && imageLocalPaths.length > 0) {
-    const imageMarkdown = imageLocalPaths.map(p => `![image](file://${p})`).join('\n');
+    const imageMarkdown = imageLocalPaths.map((p) => `![image](file://${p})`).join("\n");
     finalContent = finalContent ? `${finalContent}\n\n${imageMarkdown}` : imageMarkdown;
     log?.info?.(`[DingTalk][Gateway] 附加 ${imageLocalPaths.length} 张本地图片路径`);
   }
-  messages.push({ role: 'user', content: finalContent });
+  messages.push({ role: "user", content: finalContent });
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (gatewayAuth) {
-    headers['Authorization'] = `Bearer ${gatewayAuth}`;
+    headers["Authorization"] = `Bearer ${gatewayAuth}`;
   }
   // 使用 bindings 配置解析 agentId，支持基于 peer.kind（单聊/群聊）的路由
   // 如果没有提供 peerKind/peerId，则回退到原有逻辑
-  const agentId = (peerKind && peerId)
-    ? resolveAgentIdByBindings(accountId, peerKind, peerId, log)
-    : (accountId === DEFAULT_ACCOUNT_ID ? 'main' : accountId);
-  headers['X-OpenClaw-Agent-Id'] = agentId;
+  const agentId =
+    peerKind && peerId
+      ? resolveAgentIdByBindings(accountId, peerKind, peerId, log)
+      : accountId === DEFAULT_ACCOUNT_ID
+        ? "main"
+        : accountId;
+  headers["X-OpenClaw-Agent-Id"] = agentId;
   if (memoryUser) {
     // 使用 Base64 编码处理可能包含中文字符的 memoryUser
     // HTTP Header 只能包含 ASCII 字符，中文字符会导致 ByteString 编码错误
-    headers['X-OpenClaw-Memory-User'] = Buffer.from(memoryUser, 'utf-8').toString('base64');
+    headers["X-OpenClaw-Memory-User"] = Buffer.from(memoryUser, "utf-8").toString("base64");
   }
 
-  log?.info?.(`[DingTalk][Gateway] POST ${gatewayUrl}, session=${sessionKey}, accountId=${accountId}, agentId=${agentId}, peerKind=${peerKind}, messages=${messages.length}`);
+  log?.info?.(
+    `[DingTalk][Gateway] POST ${gatewayUrl}, session=${sessionKey}, accountId=${accountId}, agentId=${agentId}, peerKind=${peerKind}, messages=${messages.length}`,
+  );
 
   const response = await fetch(gatewayUrl, {
-    method: 'POST',
+    method: "POST",
     headers,
     body: JSON.stringify({
-      model: 'main',
+      model: "main",
       messages,
       stream: true,
-      user: sessionKey,  // 用于 session 持久化
+      user: sessionKey, // 用于 session 持久化
     }),
   });
 
   log?.info?.(`[DingTalk][Gateway] 响应 status=${response.status}, ok=${response.ok}, hasBody=${!!response.body}`);
 
   if (!response.ok || !response.body) {
-    const errText = response.body ? await response.text() : '(no body)';
+    const errText = response.body ? await response.text() : "(no body)";
     log?.error?.(`[DingTalk][Gateway] 错误响应: ${errText}`);
     throw new Error(`Gateway error: ${response.status} - ${errText}`);
   }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
 
     for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
+      if (!line.startsWith("data: ")) continue;
       const data = line.slice(6).trim();
-      if (data === '[DONE]') return;
+      if (data === "[DONE]") return;
 
       try {
         const chunk = JSON.parse(data);
@@ -1498,24 +1501,27 @@ async function* streamFromGateway(options: GatewayOptions, accountId: string): A
  * 下载钉钉图片到本地临时文件
  * 返回本地文件路径，用于 OpenClaw AgentMediaPayload
  */
-async function downloadImageToFile(
-  downloadUrl: string,
-  log?: any,
-): Promise<string | null> {
+async function downloadImageToFile(downloadUrl: string, log?: any): Promise<string | null> {
   try {
     log?.info?.(`[DingTalk][Image] 开始下载图片: ${downloadUrl.slice(0, 100)}...`);
     const resp = await axios.get(downloadUrl, {
-      responseType: 'arraybuffer',
+      responseType: "arraybuffer",
       timeout: 30_000,
     });
 
     const buffer = Buffer.from(resp.data);
-    const contentType = resp.headers['content-type'] || 'image/jpeg';
-    const ext = contentType.includes('png') ? '.png' : contentType.includes('gif') ? '.gif' : contentType.includes('webp') ? '.webp' : '.jpg';
-    const mediaDir = path.join(os.homedir(), '.openclaw', 'workspace', 'media', 'inbound');
-    fs.mkdirSync(mediaDir, { recursive: true });
+    const contentType = resp.headers["content-type"] || "image/jpeg";
+    const ext = contentType.includes("png")
+      ? ".png"
+      : contentType.includes("gif")
+        ? ".gif"
+        : contentType.includes("webp")
+          ? ".webp"
+          : ".jpg";
+    const mediaDir = path.join(os.homedir(), ".openclaw", "workspace", "media", "inbound");
+    await fsp.mkdir(mediaDir, { recursive: true });
     const tmpFile = path.join(mediaDir, `openclaw-media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
-    fs.writeFileSync(tmpFile, buffer);
+    await fsp.writeFile(tmpFile, buffer);
 
     log?.info?.(`[DingTalk][Image] 图片下载成功: size=${buffer.length} bytes, type=${contentType}, path=${tmpFile}`);
     return tmpFile;
@@ -1529,11 +1535,7 @@ async function downloadImageToFile(
  * 通过钉钉 API 下载媒体文件（需要 access_token）
  * 适用于 picture/file 类型的 downloadCode
  */
-async function downloadMediaByCode(
-  downloadCode: string,
-  config: any,
-  log?: any,
-): Promise<string | null> {
+async function downloadMediaByCode(downloadCode: string, config: any, log?: any): Promise<string | null> {
   try {
     const token = await getAccessToken(config);
     log?.info?.(`[DingTalk][Image] 通过 downloadCode 下载媒体: ${downloadCode.slice(0, 30)}...`);
@@ -1542,7 +1544,7 @@ async function downloadMediaByCode(
       `${DINGTALK_API}/v1.0/robot/messageFiles/download`,
       { downloadCode, robotCode: config.clientId },
       {
-        headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+        headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
         timeout: 30_000,
       },
     );
@@ -1578,7 +1580,7 @@ async function downloadFileByCode(
       `${DINGTALK_API}/v1.0/robot/messageFiles/download`,
       { downloadCode, robotCode: config.clientId },
       {
-        headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+        headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
         timeout: 30_000,
       },
     );
@@ -1591,18 +1593,18 @@ async function downloadFileByCode(
 
     // 下载文件内容
     const fileResp = await axios.get(downloadUrl, {
-      responseType: 'arraybuffer',
+      responseType: "arraybuffer",
       timeout: 60_000,
     });
 
     const buffer = Buffer.from(fileResp.data);
-    const mediaDir = path.join(os.homedir(), '.openclaw', 'workspace', 'media', 'inbound');
-    fs.mkdirSync(mediaDir, { recursive: true });
+    const mediaDir = path.join(os.homedir(), ".openclaw", "workspace", "media", "inbound");
+    await fsp.mkdir(mediaDir, { recursive: true });
 
     // 用时间戳前缀避免文件名冲突，保留原始文件名
-    const safeFileName = fileName.replace(/[/\\:*?"<>|]/g, '_');
+    const safeFileName = fileName.replace(/[/\\:*?"<>|]/g, "_");
     const localPath = path.join(mediaDir, `${Date.now()}-${safeFileName}`);
-    fs.writeFileSync(localPath, buffer);
+    await fsp.writeFile(localPath, buffer);
 
     log?.info?.(`[DingTalk][File] 文件下载成功: size=${buffer.length} bytes, path=${localPath}`);
     return localPath;
@@ -1613,8 +1615,26 @@ async function downloadFileByCode(
 }
 
 /** 可直接读取内容的文本类文件扩展名 */
-const TEXT_FILE_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json', '.xml', '.yaml', '.yml', '.html', '.htm', '.log', '.conf', '.ini', '.sh', '.py', '.js', '.ts', '.css', '.sql']);
-
+const TEXT_FILE_EXTENSIONS = new Set([
+  ".txt",
+  ".md",
+  ".csv",
+  ".json",
+  ".xml",
+  ".yaml",
+  ".yml",
+  ".html",
+  ".htm",
+  ".log",
+  ".conf",
+  ".ini",
+  ".sh",
+  ".py",
+  ".js",
+  ".ts",
+  ".css",
+  ".sql",
+]);
 
 // ============ 消息处理 ============
 
@@ -1635,22 +1655,22 @@ interface ExtractedMessage {
 }
 
 function extractMessageContent(data: any): ExtractedMessage {
-  const msgtype = data.msgtype || 'text';
+  const msgtype = data.msgtype || "text";
   switch (msgtype) {
-    case 'text': {
+    case "text": {
       const atDingtalkIds = data.text?.at?.atDingtalkIds || [];
       const atMobiles = data.text?.at?.atMobiles || [];
-      return { 
-        text: data.text?.content?.trim() || '', 
-        messageType: 'text', 
-        imageUrls: [], 
-        downloadCodes: [], 
+      return {
+        text: data.text?.content?.trim() || "",
+        messageType: "text",
+        imageUrls: [],
+        downloadCodes: [],
         fileNames: [],
         atDingtalkIds,
-        atMobiles
+        atMobiles,
       };
     }
-    case 'richText': {
+    case "richText": {
       const parts = data.content?.richText || [];
       const textParts: string[] = [];
       const imageUrls: string[] = [];
@@ -1662,18 +1682,26 @@ function extractMessageContent(data: any): ExtractedMessage {
         if (part.pictureUrl) {
           imageUrls.push(part.pictureUrl);
         }
-        if (part.type === 'picture' && part.downloadCode) {
+        if (part.type === "picture" && part.downloadCode) {
           // 有些 richText 图片通过 downloadCode 获取
           imageUrls.push(`downloadCode:${part.downloadCode}`);
         }
       }
 
-      const text = textParts.join('') || (imageUrls.length > 0 ? '[图片]' : '[富文本消息]');
-      return { text, messageType: 'richText', imageUrls, downloadCodes: [], fileNames: [], atDingtalkIds: [], atMobiles: [] };
+      const text = textParts.join("") || (imageUrls.length > 0 ? "[图片]" : "[富文本消息]");
+      return {
+        text,
+        messageType: "richText",
+        imageUrls,
+        downloadCodes: [],
+        fileNames: [],
+        atDingtalkIds: [],
+        atMobiles: [],
+      };
     }
-    case 'picture': {
-      const downloadCode = data.content?.downloadCode || '';
-      const pictureUrl = data.content?.pictureUrl || '';
+    case "picture": {
+      const downloadCode = data.content?.downloadCode || "";
+      const pictureUrl = data.content?.pictureUrl || "";
       const imageUrls: string[] = [];
       const downloadCodes: string[] = [];
 
@@ -1684,25 +1712,65 @@ function extractMessageContent(data: any): ExtractedMessage {
         downloadCodes.push(downloadCode);
       }
 
-      return { text: '[图片]', messageType: 'picture', imageUrls, downloadCodes, fileNames: [], atDingtalkIds: [], atMobiles: [] };
+      return {
+        text: "[图片]",
+        messageType: "picture",
+        imageUrls,
+        downloadCodes,
+        fileNames: [],
+        atDingtalkIds: [],
+        atMobiles: [],
+      };
     }
-    case 'audio':
-      return { text: data.content?.recognition || '[语音消息]', messageType: 'audio', imageUrls: [], downloadCodes: [], fileNames: [], atDingtalkIds: [], atMobiles: [] };
-    case 'video':
-      return { text: '[视频]', messageType: 'video', imageUrls: [], downloadCodes: [], fileNames: [], atDingtalkIds: [], atMobiles: [] };
-    case 'file': {
-      const fileName = data.content?.fileName || '文件';
-      const downloadCode = data.content?.downloadCode || '';
+    case "audio":
+      return {
+        text: data.content?.recognition || "[语音消息]",
+        messageType: "audio",
+        imageUrls: [],
+        downloadCodes: [],
+        fileNames: [],
+        atDingtalkIds: [],
+        atMobiles: [],
+      };
+    case "video":
+      return {
+        text: "[视频]",
+        messageType: "video",
+        imageUrls: [],
+        downloadCodes: [],
+        fileNames: [],
+        atDingtalkIds: [],
+        atMobiles: [],
+      };
+    case "file": {
+      const fileName = data.content?.fileName || "文件";
+      const downloadCode = data.content?.downloadCode || "";
       const downloadCodes: string[] = [];
       const fileNames: string[] = [];
       if (downloadCode) {
         downloadCodes.push(downloadCode);
         fileNames.push(fileName);
       }
-      return { text: `[文件: ${fileName}]`, messageType: 'file', imageUrls: [], downloadCodes, fileNames, atDingtalkIds: [], atMobiles: [] };
+      return {
+        text: `[文件: ${fileName}]`,
+        messageType: "file",
+        imageUrls: [],
+        downloadCodes,
+        fileNames,
+        atDingtalkIds: [],
+        atMobiles: [],
+      };
     }
     default:
-      return { text: data.text?.content?.trim() || `[${msgtype}消息]`, messageType: msgtype, imageUrls: [], downloadCodes: [], fileNames: [], atDingtalkIds: [], atMobiles: [] };
+      return {
+        text: data.text?.content?.trim() || `[${msgtype}消息]`,
+        messageType: msgtype,
+        imageUrls: [],
+        downloadCodes: [],
+        fileNames: [],
+        atDingtalkIds: [],
+        atMobiles: [],
+      };
   }
 }
 
@@ -1719,46 +1787,44 @@ async function sendMarkdownMessage(
   if (options.atUserId) text = `${text} @${options.atUserId}`;
 
   const body: any = {
-    msgtype: 'markdown',
-    markdown: { title: title || 'Moltbot', text },
+    msgtype: "markdown",
+    markdown: { title: title || "Moltbot", text },
   };
   if (options.atUserId) body.at = { atUserIds: [options.atUserId], isAtAll: false };
 
-  return (await axios.post(sessionWebhook, body, {
-    headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
-  })).data;
+  return (
+    await axios.post(sessionWebhook, body, {
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
+    })
+  ).data;
 }
 
 // 发送文本消息
-async function sendTextMessage(
-  config: any,
-  sessionWebhook: string,
-  text: string,
-  options: any = {},
-): Promise<any> {
+async function sendTextMessage(config: any, sessionWebhook: string, text: string, options: any = {}): Promise<any> {
   const token = await getAccessToken(config);
-  const body: any = { msgtype: 'text', text: { content: text } };
+  const body: any = { msgtype: "text", text: { content: text } };
   if (options.atUserId) body.at = { atUserIds: [options.atUserId], isAtAll: false };
 
-  return (await axios.post(sessionWebhook, body, {
-    headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
-  })).data;
+  return (
+    await axios.post(sessionWebhook, body, {
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
+    })
+  ).data;
 }
 
 // 智能选择 text / markdown
-async function sendMessage(
-  config: any,
-  sessionWebhook: string,
-  text: string,
-  options: any = {},
-): Promise<any> {
-  const hasMarkdown = /^[#*>-]|[*_`#[\]]/.test(text) || text.includes('\n');
+async function sendMessage(config: any, sessionWebhook: string, text: string, options: any = {}): Promise<any> {
+  const hasMarkdown = /^[#*>-]|[*_`#[\]]/.test(text) || text.includes("\n");
   const useMarkdown = options.useMarkdown !== false && (options.useMarkdown || hasMarkdown);
 
   if (useMarkdown) {
-    const title = options.title
-      || text.split('\n')[0].replace(/^[#*\s\->]+/, '').slice(0, 20)
-      || 'Moltbot';
+    const title =
+      options.title ||
+      text
+        .split("\n")[0]
+        .replace(/^[#*\s\->]+/, "")
+        .slice(0, 20) ||
+      "Moltbot";
     return sendMarkdownMessage(config, sessionWebhook, title, text, options);
   }
   return sendTextMessage(config, sessionWebhook, text, options);
@@ -1767,15 +1833,15 @@ async function sendMessage(
 // ============ 主动发送消息 API ============
 
 /** 消息类型枚举 */
-type DingTalkMsgType = 'text' | 'markdown' | 'link' | 'actionCard' | 'image';
+type DingTalkMsgType = "text" | "markdown" | "link" | "actionCard" | "image";
 
 /** 主动发送消息的结果 */
 interface SendResult {
   ok: boolean;
   processQueryKey?: string;
-  cardInstanceId?: string;  // AI Card 成功时返回
+  cardInstanceId?: string; // AI Card 成功时返回
   error?: string;
-  usedAICard?: boolean;  // 是否使用了 AI Card
+  usedAICard?: boolean; // 是否使用了 AI Card
 }
 
 /** 主动发送选项 */
@@ -1783,26 +1849,20 @@ interface ProactiveSendOptions {
   msgType?: DingTalkMsgType;
   title?: string;
   log?: any;
-  useAICard?: boolean;  // 是否使用 AI Card，默认 true
-  fallbackToNormal?: boolean;  // AI Card 失败时是否降级到普通消息，默认 true
+  useAICard?: boolean; // 是否使用 AI Card，默认 true
+  fallbackToNormal?: boolean; // AI Card 失败时是否降级到普通消息，默认 true
 }
 
 /** AI Card 投放目标类型 */
-type AICardTarget =
-  | { type: 'user'; userId: string }
-  | { type: 'group'; openConversationId: string };
+type AICardTarget = { type: "user"; userId: string } | { type: "group"; openConversationId: string };
 
 /**
  * 构建卡片投放请求体（提取公共逻辑）
  */
-function buildDeliverBody(
-  cardInstanceId: string,
-  target: AICardTarget,
-  robotCode: string,
-): any {
+function buildDeliverBody(cardInstanceId: string, target: AICardTarget, robotCode: string): any {
   const base = { outTrackId: cardInstanceId, userIdType: 1 };
 
-  if (target.type === 'group') {
+  if (target.type === "group") {
     return {
       ...base,
       openSpaceId: `dtv1.card//IM_GROUP.${target.openConversationId}`,
@@ -1813,7 +1873,7 @@ function buildDeliverBody(
   return {
     ...base,
     openSpaceId: `dtv1.card//IM_ROBOT.${target.userId}`,
-    imRobotOpenDeliverModel: { spaceType: 'IM_ROBOT', robotCode },
+    imRobotOpenDeliverModel: { spaceType: "IM_ROBOT", robotCode },
   };
 }
 
@@ -1821,14 +1881,8 @@ function buildDeliverBody(
  * 通用 AI Card 创建函数
  * 支持被动回复和主动发送两种场景
  */
-async function createAICardForTarget(
-  config: any,
-  target: AICardTarget,
-  log?: any,
-): Promise<AICardInstance | null> {
-  const targetDesc = target.type === 'group'
-    ? `群聊 ${target.openConversationId}`
-    : `用户 ${target.userId}`;
+async function createAICardForTarget(config: any, target: AICardTarget, log?: any): Promise<AICardInstance | null> {
+  const targetDesc = target.type === "group" ? `群聊 ${target.openConversationId}` : `用户 ${target.userId}`;
 
   try {
     const token = await getAccessToken(config);
@@ -1842,17 +1896,17 @@ async function createAICardForTarget(
       outTrackId: cardInstanceId,
       cardData: {
         cardParamMap: {
-          config: JSON.stringify({ autoLayout: true }),  // 启用宽屏模式
+          config: JSON.stringify({ autoLayout: true }), // 启用宽屏模式
         },
       },
-      callbackType: 'STREAM',
+      callbackType: "STREAM",
       imGroupOpenSpaceModel: { supportForward: true },
       imRobotOpenSpaceModel: { supportForward: true },
     };
 
     log?.info?.(`[DingTalk][AICard] POST /v1.0/card/instances`);
     const createResp = await axios.post(`${DINGTALK_API}/v1.0/card/instances`, createBody, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
     });
     log?.info?.(`[DingTalk][AICard] 创建卡片响应: status=${createResp.status}`);
 
@@ -1861,7 +1915,7 @@ async function createAICardForTarget(
 
     log?.info?.(`[DingTalk][AICard] POST /v1.0/card/instances/deliver body=${JSON.stringify(deliverBody)}`);
     const deliverResp = await axios.post(`${DINGTALK_API}/v1.0/card/instances/deliver`, deliverBody, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
     });
     log?.info?.(`[DingTalk][AICard] 投放卡片响应: status=${deliverResp.status}`);
 
@@ -1869,7 +1923,9 @@ async function createAICardForTarget(
   } catch (err: any) {
     log?.error?.(`[DingTalk][AICard] 创建卡片失败 (${targetDesc}): ${err.message}`);
     if (err.response) {
-      log?.error?.(`[DingTalk][AICard] 错误响应: status=${err.response.status} data=${JSON.stringify(err.response.data)}`);
+      log?.error?.(
+        `[DingTalk][AICard] 错误响应: status=${err.response.status} data=${JSON.stringify(err.response.data)}`,
+      );
     }
     return null;
   }
@@ -1897,12 +1953,12 @@ async function sendFileProactive(
 
     const body: any = {
       robotCode: config.clientId,
-      msgKey: 'sampleFile',
+      msgKey: "sampleFile",
       msgParam: JSON.stringify(msgParam),
     };
 
     let endpoint: string;
-    if (target.type === 'group') {
+    if (target.type === "group") {
       body.openConversationId = target.openConversationId;
       endpoint = `${DINGTALK_API}/v1.0/robot/groupMessages/send`;
     } else {
@@ -1912,7 +1968,7 @@ async function sendFileProactive(
 
     log?.info?.(`[DingTalk][File][Proactive] 发送文件消息: ${fileInfo.fileName}`);
     const resp = await axios.post(endpoint, body, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
       timeout: 10_000,
     });
 
@@ -1941,7 +1997,7 @@ async function sendAudioProactive(
     const token = await getAccessToken(config);
 
     // 钉钉普通消息 API 的音频消息格式
-    const actualDuration = (durationMs && durationMs > 0) ? durationMs.toString() : '60000';
+    const actualDuration = durationMs && durationMs > 0 ? durationMs.toString() : "60000";
     const msgParam = {
       mediaId: mediaId,
       duration: actualDuration,
@@ -1949,12 +2005,12 @@ async function sendAudioProactive(
 
     const body: any = {
       robotCode: config.clientId,
-      msgKey: 'sampleAudio',
+      msgKey: "sampleAudio",
       msgParam: JSON.stringify(msgParam),
     };
 
     let endpoint: string;
-    if (target.type === 'group') {
+    if (target.type === "group") {
       body.openConversationId = target.openConversationId;
       endpoint = `${DINGTALK_API}/v1.0/robot/groupMessages/send`;
     } else {
@@ -1964,7 +2020,7 @@ async function sendAudioProactive(
 
     log?.info?.(`[DingTalk][Audio][Proactive] 发送音频消息: ${fileInfo.fileName}`);
     const resp = await axios.post(endpoint, body, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
       timeout: 10_000,
     });
 
@@ -1996,18 +2052,18 @@ async function sendVideoProactive(
     const msgParam = {
       duration: metadata.duration.toString(),
       videoMediaId: videoMediaId,
-      videoType: 'mp4',
+      videoType: "mp4",
       picMediaId: picMediaId,
     };
 
     const body: any = {
       robotCode: config.clientId,
-      msgKey: 'sampleVideo',
+      msgKey: "sampleVideo",
       msgParam: JSON.stringify(msgParam),
     };
 
     let endpoint: string;
-    if (target.type === 'group') {
+    if (target.type === "group") {
       body.openConversationId = target.openConversationId;
       endpoint = `${DINGTALK_API}/v1.0/robot/groupMessages/send`;
     } else {
@@ -2017,7 +2073,7 @@ async function sendVideoProactive(
 
     log?.info?.(`[DingTalk][Video][Proactive] 发送视频消息`);
     const resp = await axios.post(endpoint, body, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
       timeout: 10_000,
     });
 
@@ -2039,7 +2095,7 @@ interface AudioInfo {
 /**
  * 提取音频标记并发送音频消息
  * 解析 [DINGTALK_AUDIO]{"path":"..."}[/DINGTALK_AUDIO] 标记
- * 
+ *
  * @param useProactiveApi 是否使用主动消息 API（用于 AI Card 场景）
  * @param target 主动 API 需要的目标信息（useProactiveApi=true 时必须提供）
  */
@@ -2052,7 +2108,7 @@ async function processAudioMarkers(
   useProactiveApi: boolean = false,
   target?: AICardTarget,
 ): Promise<string> {
-  const logPrefix = useProactiveApi ? '[DingTalk][Audio][Proactive]' : '[DingTalk][Audio]';
+  const logPrefix = useProactiveApi ? "[DingTalk][Audio][Proactive]" : "[DingTalk][Audio]";
 
   if (!oapiToken) {
     log?.warn?.(`${logPrefix} 无 oapiToken，跳过音频处理`);
@@ -2070,7 +2126,7 @@ async function processAudioMarkers(
         audioInfos.push(audioInfo);
         log?.info?.(`${logPrefix} 提取到音频: ${audioInfo.path}`);
       } else {
-        invalidAudios.push(audioInfo.path || '未知路径');
+        invalidAudios.push(audioInfo.path || "未知路径");
         log?.warn?.(`${logPrefix} 音频文件不存在: ${audioInfo.path}`);
       }
     } catch (err: any) {
@@ -2080,11 +2136,11 @@ async function processAudioMarkers(
 
   if (audioInfos.length === 0 && invalidAudios.length === 0) {
     log?.info?.(`${logPrefix} 未检测到音频标记`);
-    return content.replace(AUDIO_MARKER_PATTERN, '').trim();
+    return content.replace(AUDIO_MARKER_PATTERN, "").trim();
   }
 
   // 先移除所有音频标记
-  let cleanedContent = content.replace(AUDIO_MARKER_PATTERN, '').trim();
+  let cleanedContent = content.replace(AUDIO_MARKER_PATTERN, "").trim();
 
   const statusMessages: string[] = [];
 
@@ -2108,7 +2164,7 @@ async function processAudioMarkers(
       };
 
       // 上传音频到钉钉
-      const mediaId = await uploadMediaToDingTalk(audioInfo.path, 'voice', oapiToken, 20 * 1024 * 1024, log);
+      const mediaId = await uploadMediaToDingTalk(audioInfo.path, "voice", oapiToken, 20 * 1024 * 1024, log);
       if (!mediaId) {
         statusMessages.push(`⚠️ 音频上传失败: ${fileName}（文件可能超过 20MB 限制）`);
         continue;
@@ -2132,10 +2188,8 @@ async function processAudioMarkers(
   }
 
   if (statusMessages.length > 0) {
-    const statusText = statusMessages.join('\n');
-    cleanedContent = cleanedContent
-      ? `${cleanedContent}\n\n${statusText}`
-      : statusText;
+    const statusText = statusMessages.join("\n");
+    cleanedContent = cleanedContent ? `${cleanedContent}\n\n${statusText}` : statusText;
   }
 
   return cleanedContent;
@@ -2150,15 +2204,8 @@ async function processAudioMarkers(
  * @param log 日志对象
  * @returns SendResult
  */
-async function sendAICardInternal(
-  config: any,
-  target: AICardTarget,
-  content: string,
-  log?: any,
-): Promise<SendResult> {
-  const targetDesc = target.type === 'group'
-    ? `群聊 ${target.openConversationId}`
-    : `用户 ${target.userId}`;
+async function sendAICardInternal(config: any, target: AICardTarget, content: string, log?: any): Promise<SendResult> {
+  const targetDesc = target.type === "group" ? `群聊 ${target.openConversationId}` : `用户 ${target.userId}`;
 
   try {
     // 0. 获取 oapiToken 用于后处理
@@ -2175,15 +2222,15 @@ async function sendAICardInternal(
 
     // 2. 后处理02：提取视频标记并发送视频消息
     log?.info?.(`[DingTalk][Video][Proactive] 开始视频后处理`);
-    processedContent = await processVideoMarkers(processedContent, '', config, oapiToken, log, true, target);
+    processedContent = await processVideoMarkers(processedContent, "", config, oapiToken, log, true, target);
 
     // 3. 后处理03：提取音频标记并发送音频消息（使用主动消息 API）
     log?.info?.(`[DingTalk][Audio][Proactive] 开始音频后处理`);
-    processedContent = await processAudioMarkers(processedContent, '', config, oapiToken, log, true, target);
+    processedContent = await processAudioMarkers(processedContent, "", config, oapiToken, log, true, target);
 
     // 4. 后处理04：提取文件标记并发送独立文件消息（使用主动消息 API）
     log?.info?.(`[DingTalk][File][Proactive] 开始文件后处理`);
-    processedContent = await processFileMarkers(processedContent, '', config, oapiToken, log, true, target);
+    processedContent = await processFileMarkers(processedContent, "", config, oapiToken, log, true, target);
 
     // 5. 检查处理后的内容是否为空（纯文件/视频/音频消息场景）
     //    如果内容只包含文件/视频/音频标记，处理后会变成空字符串，此时跳过创建空白 AI Card
@@ -2196,7 +2243,7 @@ async function sendAICardInternal(
     // 5. 创建卡片（复用通用函数）
     const card = await createAICardForTarget(config, target, log);
     if (!card) {
-      return { ok: false, error: 'Failed to create AI Card', usedAICard: false };
+      return { ok: false, error: "Failed to create AI Card", usedAICard: false };
     }
 
     // 6. 使用 finishAICard 设置内容
@@ -2204,11 +2251,12 @@ async function sendAICardInternal(
 
     log?.info?.(`[DingTalk][AICard][Proactive] AI Card 发送成功: ${targetDesc}, cardInstanceId=${card.cardInstanceId}`);
     return { ok: true, cardInstanceId: card.cardInstanceId, usedAICard: true };
-
   } catch (err: any) {
     log?.error?.(`[DingTalk][AICard][Proactive] AI Card 发送失败 (${targetDesc}): ${err.message}`);
     if (err.response) {
-      log?.error?.(`[DingTalk][AICard][Proactive] 错误响应: status=${err.response.status} data=${JSON.stringify(err.response.data)}`);
+      log?.error?.(
+        `[DingTalk][AICard][Proactive] 错误响应: status=${err.response.status} data=${JSON.stringify(err.response.data)}`,
+      );
     }
     return { ok: false, error: err.response?.data?.message || err.message, usedAICard: false };
   }
@@ -2217,13 +2265,8 @@ async function sendAICardInternal(
 /**
  * 主动发送 AI Card 到单聊用户
  */
-async function sendAICardToUser(
-  config: any,
-  userId: string,
-  content: string,
-  log?: any,
-): Promise<SendResult> {
-  return sendAICardInternal(config, { type: 'user', userId }, content, log);
+async function sendAICardToUser(config: any, userId: string, content: string, log?: any): Promise<SendResult> {
+  return sendAICardInternal(config, { type: "user", userId }, content, log);
 }
 
 /**
@@ -2235,7 +2278,7 @@ async function sendAICardToGroup(
   content: string,
   log?: any,
 ): Promise<SendResult> {
-  return sendAICardInternal(config, { type: 'group', openConversationId }, content, log);
+  return sendAICardInternal(config, { type: "group", openConversationId }, content, log);
 }
 
 /**
@@ -2248,41 +2291,47 @@ function buildMsgPayload(
   title?: string,
 ): { msgKey: string; msgParam: Record<string, any> } | { error: string } {
   switch (msgType) {
-    case 'markdown':
+    case "markdown":
       return {
-        msgKey: 'sampleMarkdown',
+        msgKey: "sampleMarkdown",
         msgParam: {
-          title: title || content.split('\n')[0].replace(/^[#*\s\->]+/, '').slice(0, 20) || 'Message',
+          title:
+            title ||
+            content
+              .split("\n")[0]
+              .replace(/^[#*\s\->]+/, "")
+              .slice(0, 20) ||
+            "Message",
           text: ensureTableBlankLines(content),
         },
       };
-    case 'link':
+    case "link":
       try {
         return {
-          msgKey: 'sampleLink',
-          msgParam: typeof content === 'string' ? JSON.parse(content) : content,
+          msgKey: "sampleLink",
+          msgParam: typeof content === "string" ? JSON.parse(content) : content,
         };
       } catch {
-        return { error: 'Invalid link message format, expected JSON' };
+        return { error: "Invalid link message format, expected JSON" };
       }
-    case 'actionCard':
+    case "actionCard":
       try {
         return {
-          msgKey: 'sampleActionCard',
-          msgParam: typeof content === 'string' ? JSON.parse(content) : content,
+          msgKey: "sampleActionCard",
+          msgParam: typeof content === "string" ? JSON.parse(content) : content,
         };
       } catch {
-        return { error: 'Invalid actionCard message format, expected JSON' };
+        return { error: "Invalid actionCard message format, expected JSON" };
       }
-    case 'image':
+    case "image":
       return {
-        msgKey: 'sampleImageMsg',
+        msgKey: "sampleImageMsg",
         msgParam: { photoURL: content },
       };
-    case 'text':
+    case "text":
     default:
       return {
-        msgKey: 'sampleText',
+        msgKey: "sampleText",
         msgParam: { content },
       };
   }
@@ -2297,12 +2346,12 @@ async function sendNormalToUser(
   content: string,
   options: { msgType?: DingTalkMsgType; title?: string; log?: any } = {},
 ): Promise<SendResult> {
-  const { msgType = 'text', title, log } = options;
+  const { msgType = "text", title, log } = options;
   const userIdArray = Array.isArray(userIds) ? userIds : [userIds];
 
   // 构建消息参数
   const payload = buildMsgPayload(msgType, content, title);
-  if ('error' in payload) {
+  if ("error" in payload) {
     return { ok: false, error: payload.error, usedAICard: false };
   }
 
@@ -2315,10 +2364,10 @@ async function sendNormalToUser(
       msgParam: JSON.stringify(payload.msgParam),
     };
 
-    log?.info?.(`[DingTalk][Normal] 发送单聊消息: userIds=${userIdArray.join(',')}, msgType=${msgType}`);
+    log?.info?.(`[DingTalk][Normal] 发送单聊消息: userIds=${userIdArray.join(",")}, msgType=${msgType}`);
 
     const resp = await axios.post(`${DINGTALK_API}/v1.0/robot/oToMessages/batchSend`, body, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
       timeout: 10_000,
     });
 
@@ -2328,7 +2377,7 @@ async function sendNormalToUser(
     }
 
     log?.warn?.(`[DingTalk][Normal] 发送响应异常: ${JSON.stringify(resp.data)}`);
-    return { ok: false, error: resp.data?.message || 'Unknown error', usedAICard: false };
+    return { ok: false, error: resp.data?.message || "Unknown error", usedAICard: false };
   } catch (err: any) {
     const errMsg = err.response?.data?.message || err.message;
     log?.error?.(`[DingTalk][Normal] 发送失败: ${errMsg}`);
@@ -2345,11 +2394,11 @@ async function sendNormalToGroup(
   content: string,
   options: { msgType?: DingTalkMsgType; title?: string; log?: any } = {},
 ): Promise<SendResult> {
-  const { msgType = 'text', title, log } = options;
+  const { msgType = "text", title, log } = options;
 
   // 构建消息参数
   const payload = buildMsgPayload(msgType, content, title);
-  if ('error' in payload) {
+  if ("error" in payload) {
     return { ok: false, error: payload.error, usedAICard: false };
   }
 
@@ -2365,7 +2414,7 @@ async function sendNormalToGroup(
     log?.info?.(`[DingTalk][Normal] 发送群聊消息: openConversationId=${openConversationId}, msgType=${msgType}`);
 
     const resp = await axios.post(`${DINGTALK_API}/v1.0/robot/groupMessages/send`, body, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
+      headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
       timeout: 10_000,
     });
 
@@ -2375,7 +2424,7 @@ async function sendNormalToGroup(
     }
 
     log?.warn?.(`[DingTalk][Normal] 发送响应异常: ${JSON.stringify(resp.data)}`);
-    return { ok: false, error: resp.data?.message || 'Unknown error', usedAICard: false };
+    return { ok: false, error: resp.data?.message || "Unknown error", usedAICard: false };
   } catch (err: any) {
     const errMsg = err.response?.data?.message || err.message;
     log?.error?.(`[DingTalk][Normal] 发送失败: ${errMsg}`);
@@ -2400,12 +2449,12 @@ async function sendToUser(
   const { log, useAICard = true, fallbackToNormal = true } = options;
 
   if (!config.clientId || !config.clientSecret) {
-    return { ok: false, error: 'Missing clientId or clientSecret', usedAICard: false };
+    return { ok: false, error: "Missing clientId or clientSecret", usedAICard: false };
   }
 
   const userIdArray = (Array.isArray(userIds) ? userIds : [userIds]).filter((v) => Boolean(v));
   if (userIdArray.length === 0) {
-    return { ok: false, error: 'userIds cannot be empty', usedAICard: false };
+    return { ok: false, error: "userIds cannot be empty", usedAICard: false };
   }
 
   // AI Card 只支持单个用户
@@ -2451,11 +2500,11 @@ async function sendToGroup(
   const { log, useAICard = true, fallbackToNormal = true } = options;
 
   if (!config.clientId || !config.clientSecret) {
-    return { ok: false, error: 'Missing clientId or clientSecret', usedAICard: false };
+    return { ok: false, error: "Missing clientId or clientSecret", usedAICard: false };
   }
 
   if (!openConversationId) {
-    return { ok: false, error: 'openConversationId cannot be empty', usedAICard: false };
+    return { ok: false, error: "openConversationId cannot be empty", usedAICard: false };
   }
 
   // 尝试使用 AI Card
@@ -2498,9 +2547,9 @@ async function sendProactive(
 ): Promise<SendResult> {
   // 自动检测是否使用 markdown（用于降级时）
   if (!options.msgType) {
-    const hasMarkdown = /^[#*>-]|[*_`#[\]]/.test(content) || content.includes('\n');
+    const hasMarkdown = /^[#*>-]|[*_`#[\]]/.test(content) || content.includes("\n");
     if (hasMarkdown) {
-      options.msgType = 'markdown';
+      options.msgType = "markdown";
     }
   }
 
@@ -2515,7 +2564,7 @@ async function sendProactive(
     return sendToGroup(config, target.openConversationId, content, options);
   }
 
-  return { ok: false, error: 'Must specify userId, userIds, or openConversationId', usedAICard: false };
+  return { ok: false, error: "Must specify userId, userIds, or openConversationId", usedAICard: false };
 }
 
 // ============ 消息处理中表情 ============
@@ -2525,22 +2574,26 @@ async function addEmotionReply(config: any, data: any, log?: any): Promise<void>
   if (!data.msgId || !data.conversationId) return;
   try {
     const token = await getAccessToken(config);
-    await axios.post(`${DINGTALK_API}/v1.0/robot/emotion/reply`, {
-      robotCode: data.robotCode ?? config.clientId,
-      openMsgId: data.msgId,
-      openConversationId: data.conversationId,
-      emotionType: 2,
-      emotionName: '🤔思考中',
-      textEmotion: {
-        emotionId: '2659900',
-        emotionName: '🤔思考中',
-        text: '🤔思考中',
-        backgroundId: 'im_bg_1',
+    await axios.post(
+      `${DINGTALK_API}/v1.0/robot/emotion/reply`,
+      {
+        robotCode: data.robotCode ?? config.clientId,
+        openMsgId: data.msgId,
+        openConversationId: data.conversationId,
+        emotionType: 2,
+        emotionName: "🤔思考中",
+        textEmotion: {
+          emotionId: "2659900",
+          emotionName: "🤔思考中",
+          text: "🤔思考中",
+          backgroundId: "im_bg_1",
+        },
       },
-    }, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
-      timeout: 5_000,
-    });
+      {
+        headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
+        timeout: 5_000,
+      },
+    );
     log?.info?.(`[DingTalk][Emotion] 贴表情成功: msgId=${data.msgId}`);
   } catch (err: any) {
     log?.warn?.(`[DingTalk][Emotion] 贴表情失败（不影响主流程）: ${err.message}`);
@@ -2552,22 +2605,26 @@ async function recallEmotionReply(config: any, data: any, log?: any): Promise<vo
   if (!data.msgId || !data.conversationId) return;
   try {
     const token = await getAccessToken(config);
-    await axios.post(`${DINGTALK_API}/v1.0/robot/emotion/recall`, {
-      robotCode: data.robotCode ?? config.clientId,
-      openMsgId: data.msgId,
-      openConversationId: data.conversationId,
-      emotionType: 2,
-      emotionName: '🤔思考中',
-      textEmotion: {
-        emotionId: '2659900',
-        emotionName: '🤔思考中',
-        text: '🤔思考中',
-        backgroundId: 'im_bg_1',
+    await axios.post(
+      `${DINGTALK_API}/v1.0/robot/emotion/recall`,
+      {
+        robotCode: data.robotCode ?? config.clientId,
+        openMsgId: data.msgId,
+        openConversationId: data.conversationId,
+        emotionType: 2,
+        emotionName: "🤔思考中",
+        textEmotion: {
+          emotionId: "2659900",
+          emotionName: "🤔思考中",
+          text: "🤔思考中",
+          backgroundId: "im_bg_1",
+        },
       },
-    }, {
-      headers: { 'x-acs-dingtalk-access-token': token, 'Content-Type': 'application/json' },
-      timeout: 5_000,
-    });
+      {
+        headers: { "x-acs-dingtalk-access-token": token, "Content-Type": "application/json" },
+        timeout: 5_000,
+      },
+    );
     log?.info?.(`[DingTalk][Emotion] 撤回表情成功: msgId=${data.msgId}`);
   } catch (err: any) {
     log?.warn?.(`[DingTalk][Emotion] 撤回表情失败（不影响主流程）: ${err.message}`);
@@ -2589,17 +2646,19 @@ async function handleDingTalkMessage(params: {
   const content = extractMessageContent(data);
   if (!content.text && content.imageUrls.length === 0 && content.downloadCodes.length === 0) return;
 
-  const isDirect = data.conversationType === '1';
+  const isDirect = data.conversationType === "1";
   const senderId = data.senderStaffId || data.senderId;
-  const senderName = data.senderNick || 'Unknown';
+  const senderName = data.senderNick || "Unknown";
 
-  log?.info?.(`[DingTalk] 收到消息: from=${senderName} type=${content.messageType} text="${content.text.slice(0, 50)}..." images=${content.imageUrls.length} downloadCodes=${content.downloadCodes.length}`);
+  log?.info?.(
+    `[DingTalk] 收到消息: from=${senderName} type=${content.messageType} text="${content.text.slice(0, 50)}..." images=${content.imageUrls.length} downloadCodes=${content.downloadCodes.length}`,
+  );
 
   // ===== DM Policy 检查 =====
   if (isDirect) {
-    const dmPolicy = dingtalkConfig.dmPolicy || 'open';
+    const dmPolicy = dingtalkConfig.dmPolicy || "open";
     const allowFrom: string[] = dingtalkConfig.allowFrom || [];
-    if (dmPolicy === 'allowlist' && allowFrom.length > 0 && !allowFrom.includes(senderId)) {
+    if (dmPolicy === "allowlist" && allowFrom.length > 0 && !allowFrom.includes(senderId)) {
       log?.warn?.(`[DingTalk] DM 被拦截: senderId=${senderId} 不在 allowFrom 白名单中`);
       return;
     }
@@ -2607,9 +2666,9 @@ async function handleDingTalkMessage(params: {
 
   // ===== Group Policy 检查 =====
   if (!isDirect) {
-    const groupPolicy = dingtalkConfig.groupPolicy || 'open';
+    const groupPolicy = dingtalkConfig.groupPolicy || "open";
     const allowFrom: string[] = dingtalkConfig.allowFrom || [];
-    if (groupPolicy === 'allowlist' && allowFrom.length > 0 && !allowFrom.includes(senderId)) {
+    if (groupPolicy === "allowlist" && allowFrom.length > 0 && !allowFrom.includes(senderId)) {
       log?.warn?.(`[DingTalk] 群聊消息被拦截: senderId=${senderId} 不在 allowFrom 白名单中`);
       return;
     }
@@ -2618,10 +2677,12 @@ async function handleDingTalkMessage(params: {
   // 构建 OpenClaw 标准会话上下文
   // 兼容旧配置：sessionTimeout 已废弃，打印警告
   if (dingtalkConfig.sessionTimeout !== undefined) {
-    log?.warn?.(`[DingTalk][Deprecation] 'sessionTimeout' 配置已废弃，会话超时由 OpenClaw Gateway 的 session.reset 配置控制`);
+    log?.warn?.(
+      `[DingTalk][Deprecation] 'sessionTimeout' 配置已废弃，会话超时由 OpenClaw Gateway 的 session.reset 配置控制`,
+    );
   }
   const separateSessionByConversation = dingtalkConfig.separateSessionByConversation as boolean | undefined;
-  const groupSessionScope = dingtalkConfig.groupSessionScope as 'group' | 'group_sender' | undefined;
+  const groupSessionScope = dingtalkConfig.groupSessionScope as "group" | "group_sender" | undefined;
   const sessionContext = buildSessionContext({
     accountId,
     senderId,
@@ -2637,12 +2698,13 @@ async function handleDingTalkMessage(params: {
 
   // memoryUser 用于 Gateway 区分记忆归属
   // 使用 peerId（不包含中文）作为标识符，避免 HTTP Header 编码问题
-  const memoryUser = dingtalkConfig.sharedMemoryAcrossConversations === true
-    ? accountId
-    : `${sessionContext.channel}:${sessionContext.accountId}:${sessionContext.peerId}`;
+  const memoryUser =
+    dingtalkConfig.sharedMemoryAcrossConversations === true
+      ? accountId
+      : `${sessionContext.channel}:${sessionContext.accountId}:${sessionContext.peerId}`;
 
   // Gateway 认证：优先使用 token，其次 password
-  const gatewayAuth = dingtalkConfig.gatewayToken || dingtalkConfig.gatewayPassword || '';
+  const gatewayAuth = dingtalkConfig.gatewayToken || dingtalkConfig.gatewayPassword || "";
 
   // 构建 system prompts & 获取 oapi token（用于图片和文件后处理）
   const systemPrompts: string[] = [];
@@ -2653,7 +2715,7 @@ async function handleDingTalkMessage(params: {
     systemPrompts.push(buildMediaSystemPrompt());
     // 获取 token 用于后处理上传
     oapiToken = await getOapiAccessToken(dingtalkConfig);
-    log?.info?.(`[DingTalk][Media] oapiToken 获取${oapiToken ? '成功' : '失败'}`);
+    log?.info?.(`[DingTalk][Media] oapiToken 获取${oapiToken ? "成功" : "失败"}`);
   } else {
     log?.info?.(`[DingTalk][Media] enableMediaUpload=false，跳过`);
   }
@@ -2668,9 +2730,9 @@ async function handleDingTalkMessage(params: {
 
   // 处理直接图片 URL（来自 richText 的 pictureUrl）
   for (const url of content.imageUrls) {
-    if (url.startsWith('downloadCode:')) {
+    if (url.startsWith("downloadCode:")) {
       // 通过 downloadCode 下载
-      const code = url.slice('downloadCode:'.length);
+      const code = url.slice("downloadCode:".length);
       const localPath = await downloadMediaByCode(code, dingtalkConfig, log);
       if (localPath) imageLocalPaths.push(localPath);
     } else {
@@ -2712,38 +2774,41 @@ async function handleDingTalkMessage(params: {
     if (TEXT_FILE_EXTENSIONS.has(ext)) {
       // 文本类文件：读取内容追加到消息
       try {
-        const fileContent = fs.readFileSync(localPath, 'utf-8');
+        const fileContent = await fsp.readFile(localPath, "utf-8");
         const maxLen = 50_000; // 限制最大读取长度
-        const truncated = fileContent.length > maxLen ? fileContent.slice(0, maxLen) + '\n...(内容过长，已截断)' : fileContent;
+        const truncated =
+          fileContent.length > maxLen ? fileContent.slice(0, maxLen) + "\n...(内容过长，已截断)" : fileContent;
         fileContentParts.push(`[文件: ${fileName}]\n\`\`\`\n${truncated}\n\`\`\``);
         log?.info?.(`[DingTalk][File] 文本文件已读取: ${fileName}, size=${fileContent.length}`);
       } catch (err: any) {
         log?.error?.(`[DingTalk][File] 读取文本文件失败: ${err.message}`);
         fileContentParts.push(`[文件已保存: ${localPath}，但读取内容失败]`);
       }
-    } else if (ext === '.docx') {
+    } else if (ext === ".docx") {
       // Word 文档：用 mammoth 提取纯文本
       try {
-        const mammoth = await import('mammoth');
+        const mammoth = await import("mammoth");
         const result = await mammoth.default.extractRawText({ path: localPath });
         const fileContent = result.value;
         const maxLen = 50_000;
-        const truncated = fileContent.length > maxLen ? fileContent.slice(0, maxLen) + '\n...(内容过长，已截断)' : fileContent;
+        const truncated =
+          fileContent.length > maxLen ? fileContent.slice(0, maxLen) + "\n...(内容过长，已截断)" : fileContent;
         fileContentParts.push(`[文件: ${fileName}]\n\`\`\`\n${truncated}\n\`\`\``);
         log?.info?.(`[DingTalk][File] Word 文档已提取文本: ${fileName}, size=${fileContent.length}`);
       } catch (err: any) {
         log?.error?.(`[DingTalk][File] Word 文档文本提取失败: ${err.message}`);
         fileContentParts.push(`[文件已保存: ${localPath}，但提取文本失败]`);
       }
-    } else if (ext === '.pdf') {
+    } else if (ext === ".pdf") {
       // PDF 文档：用 pdf-parse 提取纯文本
       try {
-        const pdfParse = (await import('pdf-parse')).default;
-        const dataBuffer = fs.readFileSync(localPath);
+        const pdfParse = (await import("pdf-parse")).default;
+        const dataBuffer = await fsp.readFile(localPath);
         const pdfData = await pdfParse(dataBuffer);
         const fileContent = pdfData.text;
         const maxLen = 50_000;
-        const truncated = fileContent.length > maxLen ? fileContent.slice(0, maxLen) + '\n...(内容过长，已截断)' : fileContent;
+        const truncated =
+          fileContent.length > maxLen ? fileContent.slice(0, maxLen) + "\n...(内容过长，已截断)" : fileContent;
         fileContentParts.push(`[文件: ${fileName}]\n\`\`\`\n${truncated}\n\`\`\``);
         log?.info?.(`[DingTalk][File] PDF 文档已提取文本: ${fileName}, size=${fileContent.length}`);
       } catch (err: any) {
@@ -2759,11 +2824,11 @@ async function handleDingTalkMessage(params: {
 
   // 对于纯图片消息（无文本），添加默认提示
   // 文本部分先经过 normalizeSlashCommand，统一将 /reset /clear 等别名指令转为 /new，再交由 Gateway 解析
-  const rawText = content.text || '';
-  let userContent = normalizeSlashCommand(rawText) || (imageLocalPaths.length > 0 ? '请描述这张图片' : '');
+  const rawText = content.text || "";
+  let userContent = normalizeSlashCommand(rawText) || (imageLocalPaths.length > 0 ? "请描述这张图片" : "");
   // 追加文件内容
   if (fileContentParts.length > 0) {
-    const fileText = fileContentParts.join('\n\n');
+    const fileText = fileContentParts.join("\n\n");
     userContent = userContent ? `${userContent}\n\n${fileText}` : fileText;
   }
   if (!userContent && imageLocalPaths.length === 0) return;
@@ -2772,244 +2837,300 @@ async function handleDingTalkMessage(params: {
   await addEmotionReply(dingtalkConfig, data, log);
 
   try {
-  // ===== 异步模式：立即回执 + 后台执行 + 主动推送结果 =====
-  const asyncMode = dingtalkConfig.asyncMode === true;
-  const proactiveTarget = isDirect
-    ? { userId: data.senderStaffId || data.senderId }
-    : { openConversationId: data.conversationId };
+    // ===== 异步模式：立即回执 + 后台执行 + 主动推送结果 =====
+    const asyncMode = dingtalkConfig.asyncMode === true;
+    const proactiveTarget = isDirect
+      ? { userId: data.senderStaffId || data.senderId }
+      : { openConversationId: data.conversationId };
 
-  if (asyncMode) {
-    // 允许通过 ackText: '' 显式关闭异步回执；仅在未配置（null/undefined）时回退到默认文案
-    const ackText = dingtalkConfig.ackText ?? '🫡 任务已接收，处理中...';
-    if (typeof ackText === 'string' && ackText.trim().length > 0) {
+    if (asyncMode) {
+      // 允许通过 ackText: '' 显式关闭异步回执；仅在未配置（null/undefined）时回退到默认文案
+      const ackText = dingtalkConfig.ackText ?? "🫡 任务已接收，处理中...";
+      if (typeof ackText === "string" && ackText.trim().length > 0) {
+        try {
+          await sendProactive(dingtalkConfig, proactiveTarget, ackText, {
+            msgType: "text",
+            useAICard: false,
+            fallbackToNormal: true,
+            log,
+          });
+        } catch (ackErr: any) {
+          log?.warn?.(`[DingTalk][Async] 回执发送失败: ${ackErr?.message || ackErr}`);
+        }
+      } else {
+        log?.info?.("[DingTalk][Async] ackText 为空，跳过异步回执发送");
+      }
+
+      // 计算 peerKind 和 peerId 用于 bindings 匹配
+      const peerKind: "direct" | "group" = isDirect ? "direct" : "group";
+      const peerId = senderId;
+
+      let fullResponse = "";
       try {
-        await sendProactive(dingtalkConfig, proactiveTarget, ackText, {
-          msgType: 'text',
+        for await (const chunk of streamFromGateway(
+          {
+            userContent,
+            systemPrompts,
+            sessionKey: sessionContextJson,
+            gatewayAuth,
+            gatewayBaseUrl: dingtalkConfig.gatewayBaseUrl,
+            memoryUser,
+            imageLocalPaths: imageLocalPaths.length > 0 ? imageLocalPaths : undefined,
+            peerKind,
+            peerId,
+            gatewayPort: cfg.gateway?.port,
+            log,
+          },
+          accountId,
+        )) {
+          fullResponse += chunk;
+        }
+
+        log?.info?.(`[DingTalk][Async] Gateway 完成，原始长度=${fullResponse.length}`);
+
+        // 后处理01：上传本地图片到钉钉，替换 file:// 路径为 media_id
+        fullResponse = await processLocalImages(fullResponse, oapiToken, log);
+
+        // 后处理02：提取视频标记并发送视频消息（主动 API）
+        const proactiveMediaTarget: AICardTarget = isDirect
+          ? { type: "user", userId: data.senderStaffId || data.senderId }
+          : { type: "group", openConversationId: data.conversationId };
+        fullResponse = await processVideoMarkers(
+          fullResponse,
+          "",
+          dingtalkConfig,
+          oapiToken,
+          log,
+          true,
+          proactiveMediaTarget,
+        );
+
+        // 后处理03：提取音频标记并发送音频消息（主动 API）
+        fullResponse = await processAudioMarkers(
+          fullResponse,
+          "",
+          dingtalkConfig,
+          oapiToken,
+          log,
+          true,
+          proactiveMediaTarget,
+        );
+
+        // 后处理04：提取文件标记并发送独立文件消息（主动 API）
+        fullResponse = await processFileMarkers(
+          fullResponse,
+          "",
+          dingtalkConfig,
+          oapiToken,
+          log,
+          true,
+          proactiveMediaTarget,
+        );
+
+        const finalText = fullResponse.trim() || "✅ 任务执行完成（无文本输出）";
+        await sendProactive(dingtalkConfig, proactiveTarget, finalText, {
+          msgType: "markdown",
           useAICard: false,
           fallbackToNormal: true,
           log,
         });
-      } catch (ackErr: any) {
-        log?.warn?.(`[DingTalk][Async] 回执发送失败: ${ackErr?.message || ackErr}`);
+
+        log?.info?.(`[DingTalk][Async] 结果已主动推送，长度=${finalText.length}`);
+      } catch (err: any) {
+        const errMsg = `⚠️ 任务执行失败: ${err?.message || err}`;
+        log?.error?.(`[DingTalk][Async] ${errMsg}`);
+        try {
+          await sendProactive(dingtalkConfig, proactiveTarget, errMsg, {
+            msgType: "text",
+            useAICard: false,
+            fallbackToNormal: true,
+            log,
+          });
+        } catch (sendErr: any) {
+          log?.error?.(`[DingTalk][Async] 错误通知发送失败: ${sendErr?.message || sendErr}`);
+        }
       }
-    } else {
-      log?.info?.('[DingTalk][Async] ackText 为空，跳过异步回执发送');
+
+      return;
     }
 
-    // 计算 peerKind 和 peerId 用于 bindings 匹配
-    const peerKind: 'direct' | 'group' = isDirect ? 'direct' : 'group';
+    // 计算 peerKind 和 peerId 用于 bindings 匹配（在 asyncMode 外部定义，供所有分支使用）
+    const peerKind: "direct" | "group" = isDirect ? "direct" : "group";
     const peerId = senderId;
 
-    let fullResponse = '';
-    try {
-      for await (const chunk of streamFromGateway({
-        userContent,
-        systemPrompts,
-        sessionKey: sessionContextJson,
-        gatewayAuth,
-        gatewayBaseUrl: dingtalkConfig.gatewayBaseUrl,
-        memoryUser,
-        imageLocalPaths: imageLocalPaths.length > 0 ? imageLocalPaths : undefined,
-        peerKind,
-        peerId,
-        gatewayPort: cfg.gateway?.port,
-        log,
-      }, accountId)) {
-        fullResponse += chunk;
-      }
+    // 尝试创建 AI Card
+    const card = await createAICard(dingtalkConfig, data, log);
 
-      log?.info?.(`[DingTalk][Async] Gateway 完成，原始长度=${fullResponse.length}`);
+    if (card) {
+      // ===== AI Card 流式模式 =====
+      log?.info?.(`[DingTalk] AI Card 创建成功: ${card.cardInstanceId}`);
 
-      // 后处理01：上传本地图片到钉钉，替换 file:// 路径为 media_id
-      fullResponse = await processLocalImages(fullResponse, oapiToken, log);
+      let accumulated = "";
+      let lastUpdateTime = 0;
+      const updateInterval = 300; // 最小更新间隔 ms
+      let chunkCount = 0;
 
-      // 后处理02：提取视频标记并发送视频消息（主动 API）
-      const proactiveMediaTarget: AICardTarget = isDirect
-        ? { type: 'user', userId: data.senderStaffId || data.senderId }
-        : { type: 'group', openConversationId: data.conversationId };
-      fullResponse = await processVideoMarkers(fullResponse, '', dingtalkConfig, oapiToken, log, true, proactiveMediaTarget);
-
-      // 后处理03：提取音频标记并发送音频消息（主动 API）
-      fullResponse = await processAudioMarkers(fullResponse, '', dingtalkConfig, oapiToken, log, true, proactiveMediaTarget);
-
-      // 后处理04：提取文件标记并发送独立文件消息（主动 API）
-      fullResponse = await processFileMarkers(fullResponse, '', dingtalkConfig, oapiToken, log, true, proactiveMediaTarget);
-
-      const finalText = fullResponse.trim() || '✅ 任务执行完成（无文本输出）';
-      await sendProactive(dingtalkConfig, proactiveTarget, finalText, {
-        msgType: 'markdown',
-        useAICard: false,
-        fallbackToNormal: true,
-        log,
-      });
-
-      log?.info?.(`[DingTalk][Async] 结果已主动推送，长度=${finalText.length}`);
-    } catch (err: any) {
-      const errMsg = `⚠️ 任务执行失败: ${err?.message || err}`;
-      log?.error?.(`[DingTalk][Async] ${errMsg}`);
       try {
-        await sendProactive(dingtalkConfig, proactiveTarget, errMsg, {
-          msgType: 'text',
-          useAICard: false,
-          fallbackToNormal: true,
+        log?.info?.(`[DingTalk] 开始请求 Gateway 流式接口...`);
+        for await (const chunk of streamFromGateway(
+          {
+            userContent,
+            systemPrompts,
+            sessionKey: sessionContextJson,
+            gatewayAuth,
+            gatewayBaseUrl: dingtalkConfig.gatewayBaseUrl,
+            memoryUser,
+            imageLocalPaths: imageLocalPaths.length > 0 ? imageLocalPaths : undefined,
+            peerKind,
+            peerId,
+            gatewayPort: cfg.gateway?.port,
+            log,
+          },
+          accountId,
+        )) {
+          accumulated += chunk;
+          chunkCount++;
+
+          if (chunkCount <= 3) {
+            log?.info?.(
+              `[DingTalk] Gateway chunk #${chunkCount}: "${chunk.slice(0, 50)}..." (accumulated=${accumulated.length})`,
+            );
+          }
+
+          // 节流更新，避免过于频繁
+          const now = Date.now();
+          if (now - lastUpdateTime >= updateInterval) {
+            // 实时清理文件、视频、音频标记（避免用户在流式过程中看到标记）
+            const displayContent = accumulated
+              .replace(FILE_MARKER_PATTERN, "")
+              .replace(VIDEO_MARKER_PATTERN, "")
+              .replace(AUDIO_MARKER_PATTERN, "")
+              .trim();
+            await streamAICard(card, displayContent, false, log);
+            lastUpdateTime = now;
+          }
+        }
+
+        log?.info?.(`[DingTalk] Gateway 流完成，共 ${chunkCount} chunks, ${accumulated.length} 字符`);
+
+        // 后处理01：上传本地图片到钉钉，替换 file:// 路径为 media_id
+        log?.info?.(`[DingTalk][Media] 开始图片后处理，内容片段="${accumulated.slice(0, 200)}..."`);
+        accumulated = await processLocalImages(accumulated, oapiToken, log);
+
+        // 【关键修复】AI Card 场景使用主动消息 API 发送文件/视频，避免 sessionWebhook 失效问题
+        // 构建目标信息用于主动 API（isDirect 已在上面定义）
+        const cardProactiveTarget: AICardTarget = isDirect
+          ? { type: "user", userId: data.senderStaffId || data.senderId }
+          : { type: "group", openConversationId: data.conversationId };
+
+        // 后处理02：提取视频标记并发送视频消息（使用主动消息 API）
+        log?.info?.(`[DingTalk][Video] 开始视频后处理 (使用主动API)`);
+        accumulated = await processVideoMarkers(
+          accumulated,
+          "",
+          dingtalkConfig,
+          oapiToken,
           log,
-        });
-      } catch (sendErr: any) {
-        log?.error?.(`[DingTalk][Async] 错误通知发送失败: ${sendErr?.message || sendErr}`);
-      }
-    }
+          true,
+          cardProactiveTarget,
+        );
 
-    return;
-  }
+        // 后处理03：提取音频标记并发送音频消息（使用主动消息 API）
+        log?.info?.(`[DingTalk][Audio] 开始音频后处理 (使用主动API)`);
+        accumulated = await processAudioMarkers(
+          accumulated,
+          "",
+          dingtalkConfig,
+          oapiToken,
+          log,
+          true,
+          cardProactiveTarget,
+        );
 
-  // 计算 peerKind 和 peerId 用于 bindings 匹配（在 asyncMode 外部定义，供所有分支使用）
-  const peerKind: 'direct' | 'group' = isDirect ? 'direct' : 'group';
-  const peerId = senderId;
+        // 后处理04：提取文件标记并发送独立文件消息（使用主动消息 API）
+        log?.info?.(`[DingTalk][File] 开始文件后处理 (使用主动API，目标=${JSON.stringify(cardProactiveTarget)})`);
+        accumulated = await processFileMarkers(
+          accumulated,
+          sessionWebhook,
+          dingtalkConfig,
+          oapiToken,
+          log,
+          true,
+          cardProactiveTarget,
+        );
 
-  // 尝试创建 AI Card
-  const card = await createAICard(dingtalkConfig, data, log);
-
-  if (card) {
-    // ===== AI Card 流式模式 =====
-    log?.info?.(`[DingTalk] AI Card 创建成功: ${card.cardInstanceId}`);
-
-    let accumulated = '';
-    let lastUpdateTime = 0;
-    const updateInterval = 300; // 最小更新间隔 ms
-    let chunkCount = 0;
-
-    try {
-      log?.info?.(`[DingTalk] 开始请求 Gateway 流式接口...`);
-      for await (const chunk of streamFromGateway({
-        userContent,
-        systemPrompts,
-        sessionKey: sessionContextJson,
-        gatewayAuth,
-        gatewayBaseUrl: dingtalkConfig.gatewayBaseUrl,
-        memoryUser,
-        imageLocalPaths: imageLocalPaths.length > 0 ? imageLocalPaths : undefined,
-        peerKind,
-        peerId,
-        gatewayPort: cfg.gateway?.port,
-        log,
-      }, accountId)) {
-        accumulated += chunk;
-        chunkCount++;
-
-        if (chunkCount <= 3) {
-          log?.info?.(`[DingTalk] Gateway chunk #${chunkCount}: "${chunk.slice(0, 50)}..." (accumulated=${accumulated.length})`);
+        // 完成 AI Card（如果内容为空，说明是纯媒体消息，使用默认提示）
+        const finalContent = accumulated.trim();
+        if (finalContent.length === 0) {
+          log?.info?.(`[DingTalk][AICard] 内容为空（纯媒体消息），使用默认提示`);
+          await finishAICard(card, "✅ 媒体已发送", log);
+        } else {
+          await finishAICard(card, finalContent, log);
         }
-
-        // 节流更新，避免过于频繁
-        const now = Date.now();
-        if (now - lastUpdateTime >= updateInterval) {
-          // 实时清理文件、视频、音频标记（避免用户在流式过程中看到标记）
-          const displayContent = accumulated
-            .replace(FILE_MARKER_PATTERN, '')
-            .replace(VIDEO_MARKER_PATTERN, '')
-            .replace(AUDIO_MARKER_PATTERN, '')
-            .trim();
-          await streamAICard(card, displayContent, false, log);
-          lastUpdateTime = now;
+        log?.info?.(`[DingTalk] 流式响应完成，共 ${finalContent.length} 字符`);
+      } catch (err: any) {
+        log?.error?.(`[DingTalk] Gateway 调用失败: ${err.message}`);
+        log?.error?.(`[DingTalk] 错误详情: ${err.stack}`);
+        accumulated += `\n\n⚠️ 响应中断: ${err.message}`;
+        try {
+          await finishAICard(card, accumulated, log);
+        } catch (finishErr: any) {
+          log?.error?.(`[DingTalk] 错误恢复 finish 也失败: ${finishErr.message}`);
         }
       }
+    } else {
+      // ===== 降级：普通消息模式 =====
+      log?.warn?.(`[DingTalk] AI Card 创建失败，降级为普通消息`);
 
-      log?.info?.(`[DingTalk] Gateway 流完成，共 ${chunkCount} chunks, ${accumulated.length} 字符`);
-
-      // 后处理01：上传本地图片到钉钉，替换 file:// 路径为 media_id
-      log?.info?.(`[DingTalk][Media] 开始图片后处理，内容片段="${accumulated.slice(0, 200)}..."`);
-      accumulated = await processLocalImages(accumulated, oapiToken, log);
-
-      // 【关键修复】AI Card 场景使用主动消息 API 发送文件/视频，避免 sessionWebhook 失效问题
-      // 构建目标信息用于主动 API（isDirect 已在上面定义）
-      const cardProactiveTarget: AICardTarget = isDirect
-        ? { type: 'user', userId: data.senderStaffId || data.senderId }
-        : { type: 'group', openConversationId: data.conversationId };
-
-      // 后处理02：提取视频标记并发送视频消息（使用主动消息 API）
-      log?.info?.(`[DingTalk][Video] 开始视频后处理 (使用主动API)`);
-      accumulated = await processVideoMarkers(accumulated, '', dingtalkConfig, oapiToken, log, true, cardProactiveTarget);
-
-      // 后处理03：提取音频标记并发送音频消息（使用主动消息 API）
-      log?.info?.(`[DingTalk][Audio] 开始音频后处理 (使用主动API)`);
-      accumulated = await processAudioMarkers(accumulated, '', dingtalkConfig, oapiToken, log, true, cardProactiveTarget);
-
-      // 后处理04：提取文件标记并发送独立文件消息（使用主动消息 API）
-      log?.info?.(`[DingTalk][File] 开始文件后处理 (使用主动API，目标=${JSON.stringify(cardProactiveTarget)})`);
-      accumulated = await processFileMarkers(accumulated, sessionWebhook, dingtalkConfig, oapiToken, log, true, cardProactiveTarget);
-
-      // 完成 AI Card（如果内容为空，说明是纯媒体消息，使用默认提示）
-      const finalContent = accumulated.trim();
-      if (finalContent.length === 0) {
-        log?.info?.(`[DingTalk][AICard] 内容为空（纯媒体消息），使用默认提示`);
-        await finishAICard(card, '✅ 媒体已发送', log);
-      } else {
-        await finishAICard(card, finalContent, log);
-      }
-      log?.info?.(`[DingTalk] 流式响应完成，共 ${finalContent.length} 字符`);
-
-    } catch (err: any) {
-      log?.error?.(`[DingTalk] Gateway 调用失败: ${err.message}`);
-      log?.error?.(`[DingTalk] 错误详情: ${err.stack}`);
-      accumulated += `\n\n⚠️ 响应中断: ${err.message}`;
+      let fullResponse = "";
       try {
-        await finishAICard(card, accumulated, log);
-      } catch (finishErr: any) {
-        log?.error?.(`[DingTalk] 错误恢复 finish 也失败: ${finishErr.message}`);
+        for await (const chunk of streamFromGateway(
+          {
+            userContent,
+            systemPrompts,
+            sessionKey: sessionContextJson,
+            gatewayAuth,
+            gatewayBaseUrl: dingtalkConfig.gatewayBaseUrl,
+            memoryUser,
+            imageLocalPaths: imageLocalPaths.length > 0 ? imageLocalPaths : undefined,
+            peerKind,
+            peerId,
+            gatewayPort: cfg.gateway?.port,
+            log,
+          },
+          accountId,
+        )) {
+          fullResponse += chunk;
+        }
+
+        // 后处理01：上传本地图片到钉钉，替换 file:// 路径为 media_id
+        log?.info?.(`[DingTalk][Media] (降级模式) 开始图片后处理，内容片段="${fullResponse.slice(0, 200)}..."`);
+        fullResponse = await processLocalImages(fullResponse, oapiToken, log);
+
+        // 后处理02：提取视频标记并发送视频消息
+        log?.info?.(`[DingTalk][Video] (降级模式) 开始视频后处理`);
+        fullResponse = await processVideoMarkers(fullResponse, sessionWebhook, dingtalkConfig, oapiToken, log);
+
+        // 后处理03：提取音频标记并发送音频消息
+        log?.info?.(`[DingTalk][Audio] (降级模式) 开始音频后处理`);
+        fullResponse = await processAudioMarkers(fullResponse, sessionWebhook, dingtalkConfig, oapiToken, log);
+
+        // 后处理04：提取文件标记并发送独立文件消息
+        log?.info?.(`[DingTalk][File] (降级模式) 开始文件后处理`);
+        fullResponse = await processFileMarkers(fullResponse, sessionWebhook, dingtalkConfig, oapiToken, log);
+
+        await sendMessage(dingtalkConfig, sessionWebhook, fullResponse || "（无响应）", {
+          atUserId: !isDirect ? senderId : null,
+          useMarkdown: true,
+        });
+        log?.info?.(`[DingTalk] 普通消息回复完成，共 ${fullResponse.length} 字符`);
+      } catch (err: any) {
+        log?.error?.(`[DingTalk] Gateway 调用失败: ${err.message}`);
+        await sendMessage(dingtalkConfig, sessionWebhook, `抱歉，处理请求时出错: ${err.message}`, {
+          atUserId: !isDirect ? senderId : null,
+        });
       }
     }
-
-  } else {
-    // ===== 降级：普通消息模式 =====
-    log?.warn?.(`[DingTalk] AI Card 创建失败，降级为普通消息`);
-
-    let fullResponse = '';
-    try {
-      for await (const chunk of streamFromGateway({
-        userContent,
-        systemPrompts,
-        sessionKey: sessionContextJson,
-        gatewayAuth,
-        gatewayBaseUrl: dingtalkConfig.gatewayBaseUrl,
-        memoryUser,
-        imageLocalPaths: imageLocalPaths.length > 0 ? imageLocalPaths : undefined,
-        peerKind,
-        peerId,
-        gatewayPort: cfg.gateway?.port,
-        log,
-      }, accountId)) {
-        fullResponse += chunk;
-      }
-
-      // 后处理01：上传本地图片到钉钉，替换 file:// 路径为 media_id
-      log?.info?.(`[DingTalk][Media] (降级模式) 开始图片后处理，内容片段="${fullResponse.slice(0, 200)}..."`);
-      fullResponse = await processLocalImages(fullResponse, oapiToken, log);
-
-      // 后处理02：提取视频标记并发送视频消息
-      log?.info?.(`[DingTalk][Video] (降级模式) 开始视频后处理`);
-      fullResponse = await processVideoMarkers(fullResponse, sessionWebhook, dingtalkConfig, oapiToken, log);
-
-      // 后处理03：提取音频标记并发送音频消息
-      log?.info?.(`[DingTalk][Audio] (降级模式) 开始音频后处理`);
-      fullResponse = await processAudioMarkers(fullResponse, sessionWebhook, dingtalkConfig, oapiToken, log);
-
-      // 后处理04：提取文件标记并发送独立文件消息
-      log?.info?.(`[DingTalk][File] (降级模式) 开始文件后处理`);
-      fullResponse = await processFileMarkers(fullResponse, sessionWebhook, dingtalkConfig, oapiToken, log);
-
-      await sendMessage(dingtalkConfig, sessionWebhook, fullResponse || '（无响应）', {
-        atUserId: !isDirect ? senderId : null,
-        useMarkdown: true,
-      });
-      log?.info?.(`[DingTalk] 普通消息回复完成，共 ${fullResponse.length} 字符`);
-
-    } catch (err: any) {
-      log?.error?.(`[DingTalk] Gateway 调用失败: ${err.message}`);
-      await sendMessage(dingtalkConfig, sessionWebhook, `抱歉，处理请求时出错: ${err.message}`, {
-        atUserId: !isDirect ? senderId : null,
-      });
-    }
-  }
   } finally {
     // ===== 撤回处理中表情 =====
     await recallEmotionReply(dingtalkConfig, data, log);
@@ -3052,8 +3173,8 @@ class DingtalkDocsClient {
   private async getHeaders(): Promise<Record<string, string>> {
     const token = await getAccessToken(this.config);
     return {
-      'x-acs-dingtalk-access-token': token,
-      'Content-Type': 'application/json',
+      "x-acs-dingtalk-access-token": token,
+      "Content-Type": "application/json",
     };
   }
 
@@ -3067,18 +3188,18 @@ class DingtalkDocsClient {
       const headers = await this.getHeaders();
       this.log?.info?.(`[DingTalk][Docs] 获取文档信息: spaceId=${spaceId}, docId=${docId}`);
 
-      const resp = await axios.get(
-        `${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/docs/${docId}`,
-        { headers, timeout: 10_000 },
-      );
+      const resp = await axios.get(`${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/docs/${docId}`, {
+        headers,
+        timeout: 10_000,
+      });
 
       const data = resp.data;
       this.log?.info?.(`[DingTalk][Docs] 文档信息获取成功: title=${data?.title}`);
 
       return {
         docId: data.docId || docId,
-        title: data.title || '',
-        docType: data.docType || 'unknown',
+        title: data.title || "",
+        docType: data.docType || "unknown",
         creatorId: data.creatorId,
         updatedAt: data.updatedAt,
       };
@@ -3099,34 +3220,32 @@ class DingtalkDocsClient {
       this.log?.info?.(`[DingTalk][Docs] 读取知识库节点: nodeId=${nodeId}, operatorId=${operatorId}`);
 
       if (!operatorId) {
-        this.log?.error?.('[DingTalk][Docs] readDoc 需要 operatorId（unionId）');
+        this.log?.error?.("[DingTalk][Docs] readDoc 需要 operatorId（unionId）");
         return null;
       }
 
-      const resp = await axios.get(
-        `${DINGTALK_API}/v2.0/wiki/nodes/${nodeId}`,
-        { headers, params: { operatorId }, timeout: 15_000 },
-      );
+      const resp = await axios.get(`${DINGTALK_API}/v2.0/wiki/nodes/${nodeId}`, {
+        headers,
+        params: { operatorId },
+        timeout: 15_000,
+      });
 
       const node = resp.data?.node || resp.data;
-      const name = node.name || '未知文档';
-      const category = node.category || 'unknown';
-      const url = node.url || '';
-      const workspaceId = node.workspaceId || '';
+      const name = node.name || "未知文档";
+      const category = node.category || "unknown";
+      const url = node.url || "";
+      const workspaceId = node.workspaceId || "";
 
-      const content = [
-        `文档名: ${name}`,
-        `类型: ${category}`,
-        `URL: ${url}`,
-        `工作区: ${workspaceId}`,
-      ].join('\n');
+      const content = [`文档名: ${name}`, `类型: ${category}`, `URL: ${url}`, `工作区: ${workspaceId}`].join("\n");
 
       this.log?.info?.(`[DingTalk][Docs] 节点信息获取成功: name=${name}, category=${category}`);
       return content;
     } catch (err: any) {
       this.log?.error?.(`[DingTalk][Docs] 读取节点失败: ${err.message}`);
       if (err.response) {
-        this.log?.error?.(`[DingTalk][Docs] 错误详情: status=${err.response.status} data=${JSON.stringify(err.response.data)}`);
+        this.log?.error?.(
+          `[DingTalk][Docs] 错误详情: status=${err.response.status} data=${JSON.stringify(err.response.data)}`,
+        );
       }
       return null;
     }
@@ -3154,35 +3273,32 @@ class DingtalkDocsClient {
    * @param content 要追加的文本内容
    * @param index 插入位置（-1 表示末尾）
    */
-  async appendToDoc(
-    docId: string,
-    content: string,
-    index: number = -1,
-  ): Promise<boolean> {
+  async appendToDoc(docId: string, content: string, index: number = -1): Promise<boolean> {
     try {
       const headers = await this.getHeaders();
       this.log?.info?.(`[DingTalk][Docs] 向文档追加内容: docId=${docId}, contentLen=${content.length}`);
 
       const body = {
-        blockType: 'PARAGRAPH',
+        blockType: "PARAGRAPH",
         body: {
           text: content,
         },
         index,
       };
 
-      await axios.post(
-        `${DINGTALK_API}/v1.0/doc/documents/${docId}/blocks/root/children`,
-        body,
-        { headers, timeout: 10_000 },
-      );
+      await axios.post(`${DINGTALK_API}/v1.0/doc/documents/${docId}/blocks/root/children`, body, {
+        headers,
+        timeout: 10_000,
+      });
 
       this.log?.info?.(`[DingTalk][Docs] 内容追加成功`);
       return true;
     } catch (err: any) {
       this.log?.error?.(`[DingTalk][Docs] 追加内容失败: ${err.message}`);
       if (err.response) {
-        this.log?.error?.(`[DingTalk][Docs] 错误详情: status=${err.response.status} data=${JSON.stringify(err.response.data)}`);
+        this.log?.error?.(
+          `[DingTalk][Docs] 错误详情: status=${err.response.status} data=${JSON.stringify(err.response.data)}`,
+        );
       }
       return false;
     }
@@ -3194,35 +3310,30 @@ class DingtalkDocsClient {
    * @param title 文档标题
    * @param content 初始内容（可选）
    */
-  async createDoc(
-    spaceId: string,
-    title: string,
-    content?: string,
-  ): Promise<DocInfo | null> {
+  async createDoc(spaceId: string, title: string, content?: string): Promise<DocInfo | null> {
     try {
       const headers = await this.getHeaders();
       this.log?.info?.(`[DingTalk][Docs] 创建文档: spaceId=${spaceId}, title=${title}`);
 
       const body: any = {
         spaceId,
-        parentDentryId: '',
+        parentDentryId: "",
         name: title,
-        docType: 'alidoc',
+        docType: "alidoc",
       };
 
-      const resp = await axios.post(
-        `${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/docs`,
-        body,
-        { headers, timeout: 10_000 },
-      );
+      const resp = await axios.post(`${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/docs`, body, {
+        headers,
+        timeout: 10_000,
+      });
 
       const data = resp.data;
       this.log?.info?.(`[DingTalk][Docs] 文档创建成功: docId=${data?.docId}`);
 
       const docInfo: DocInfo = {
-        docId: data.docId || data.dentryUuid || '',
+        docId: data.docId || data.dentryUuid || "",
         title: title,
-        docType: data.docType || 'alidoc',
+        docType: data.docType || "alidoc",
       };
 
       // 如果有初始内容，追加到文档
@@ -3234,7 +3345,9 @@ class DingtalkDocsClient {
     } catch (err: any) {
       this.log?.error?.(`[DingTalk][Docs] 创建文档失败: ${err.message}`);
       if (err.response) {
-        this.log?.error?.(`[DingTalk][Docs] 错误详情: status=${err.response.status} data=${JSON.stringify(err.response.data)}`);
+        this.log?.error?.(
+          `[DingTalk][Docs] 错误详情: status=${err.response.status} data=${JSON.stringify(err.response.data)}`,
+        );
       }
       return null;
     }
@@ -3245,28 +3358,21 @@ class DingtalkDocsClient {
    * @param keyword 搜索关键词
    * @param spaceId 空间 ID（可选，不填则搜索所有空间）
    */
-  async searchDocs(
-    keyword: string,
-    spaceId?: string,
-  ): Promise<DocInfo[]> {
+  async searchDocs(keyword: string, spaceId?: string): Promise<DocInfo[]> {
     try {
       const headers = await this.getHeaders();
-      this.log?.info?.(`[DingTalk][Docs] 搜索文档: keyword=${keyword}, spaceId=${spaceId || '全部'}`);
+      this.log?.info?.(`[DingTalk][Docs] 搜索文档: keyword=${keyword}, spaceId=${spaceId || "全部"}`);
 
       const body: any = { keyword, maxResults: 20 };
       if (spaceId) body.spaceId = spaceId;
 
-      const resp = await axios.post(
-        `${DINGTALK_API}/v1.0/doc/docs/search`,
-        body,
-        { headers, timeout: 10_000 },
-      );
+      const resp = await axios.post(`${DINGTALK_API}/v1.0/doc/docs/search`, body, { headers, timeout: 10_000 });
 
       const items = resp.data?.items || [];
       const docs: DocInfo[] = items.map((item: any) => ({
-        docId: item.docId || item.dentryUuid || '',
-        title: item.name || item.title || '',
-        docType: item.docType || 'unknown',
+        docId: item.docId || item.dentryUuid || "",
+        title: item.name || item.title || "",
+        docType: item.docType || "unknown",
         creatorId: item.creatorId,
         updatedAt: item.updatedAt,
       }));
@@ -3284,27 +3390,25 @@ class DingtalkDocsClient {
    * @param spaceId 空间 ID
    * @param parentId 父目录 ID（可选，不填则列出根目录）
    */
-  async listDocs(
-    spaceId: string,
-    parentId?: string,
-  ): Promise<DocInfo[]> {
+  async listDocs(spaceId: string, parentId?: string): Promise<DocInfo[]> {
     try {
       const headers = await this.getHeaders();
-      this.log?.info?.(`[DingTalk][Docs] 列出文档: spaceId=${spaceId}, parentId=${parentId || '根目录'}`);
+      this.log?.info?.(`[DingTalk][Docs] 列出文档: spaceId=${spaceId}, parentId=${parentId || "根目录"}`);
 
       const params: any = { maxResults: 50 };
       if (parentId) params.parentDentryId = parentId;
 
-      const resp = await axios.get(
-        `${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/dentries`,
-        { headers, params, timeout: 10_000 },
-      );
+      const resp = await axios.get(`${DINGTALK_API}/v1.0/doc/spaces/${spaceId}/dentries`, {
+        headers,
+        params,
+        timeout: 10_000,
+      });
 
       const items = resp.data?.items || [];
       const docs: DocInfo[] = items.map((item: any) => ({
-        docId: item.dentryUuid || item.docId || '',
-        title: item.name || '',
-        docType: item.docType || item.dentryType || 'unknown',
+        docId: item.dentryUuid || item.docId || "",
+        title: item.name || "",
+        docType: item.docType || item.dentryType || "unknown",
         creatorId: item.creatorId,
         updatedAt: item.updatedAt,
       }));
@@ -3321,68 +3425,86 @@ class DingtalkDocsClient {
 // ============ 插件定义 ============
 
 const meta = {
-  id: 'dingtalk-connector',
-  label: 'DingTalk',
-  selectionLabel: 'DingTalk (钉钉)',
-  docsPath: '/channels/dingtalk-connector',
-  docsLabel: 'dingtalk-connector',
-  blurb: '钉钉企业内部机器人，使用 Stream 模式，无需公网 IP，支持 AI Card 流式响应。',
+  id: "dingtalk-connector",
+  label: "DingTalk",
+  selectionLabel: "DingTalk (钉钉)",
+  docsPath: "/channels/dingtalk-connector",
+  docsLabel: "dingtalk-connector",
+  blurb: "钉钉企业内部机器人，使用 Stream 模式，无需公网 IP，支持 AI Card 流式响应。",
   order: 70,
-  aliases: ['dd', 'ding'],
+  aliases: ["dd", "ding"],
 };
 
 const dingtalkPlugin = {
-  id: 'dingtalk-connector',
+  id: "dingtalk-connector",
   meta,
   capabilities: {
-    chatTypes: ['direct', 'group'],
+    chatTypes: ["direct", "group"],
     reactions: false,
     threads: false,
     media: true,
     nativeCommands: false,
     blockStreaming: false,
   },
-  reload: { configPrefixes: ['channels.dingtalk-connector'] },
+  reload: { configPrefixes: ["channels.dingtalk-connector"] },
   configSchema: {
     schema: {
-      type: 'object',
+      type: "object",
       additionalProperties: false,
       properties: {
-        enabled: { type: 'boolean', default: true },
-        clientId: { type: 'string', description: 'DingTalk App Key (Client ID)' },
-        clientSecret: { type: 'string', description: 'DingTalk App Secret (Client Secret)' },
-        enableMediaUpload: { type: 'boolean', default: true, description: 'Enable media upload prompt injection' },
-        systemPrompt: { type: 'string', default: '', description: 'Custom system prompt' },
-        dmPolicy: { type: 'string', enum: ['open', 'pairing', 'allowlist'], default: 'open' },
-        allowFrom: { type: 'array', items: { type: 'string' }, description: 'Allowed sender IDs' },
-        groupPolicy: { type: 'string', enum: ['open', 'allowlist'], default: 'open' },
-        gatewayToken: { type: 'string', default: '', description: 'Gateway auth token (Bearer)' },
-        gatewayPassword: { type: 'string', default: '', description: 'Gateway auth password (alternative to token)' },
-        gatewayBaseUrl: { type: 'string', default: '', description: 'Custom Gateway URL (e.g., http://127.0.0.1:18788 for Nginx proxy to TLS Gateway)' },
-        sessionTimeout: { type: 'number', default: 1800000, description: 'Session timeout in ms (default 30min)' },
-        separateSessionByConversation: { type: 'boolean', default: true, description: '是否按单聊/群聊/群区分 session' },
-        sharedMemoryAcrossConversations: { type: 'boolean', default: false, description: '单 agent 场景下是否共享记忆；false 时不同群聊、群聊与私聊记忆隔离' },
-        asyncMode: { type: 'boolean', default: false, description: 'Send immediate ack and push final result as a second message' },
-        ackText: { type: 'string', default: '🫡 任务已接收，处理中...', description: 'Ack text when asyncMode is enabled' },
-        debug: { type: 'boolean', default: false },
+        enabled: { type: "boolean", default: true },
+        clientId: { type: "string", description: "DingTalk App Key (Client ID)" },
+        clientSecret: { type: "string", description: "DingTalk App Secret (Client Secret)" },
+        enableMediaUpload: { type: "boolean", default: true, description: "Enable media upload prompt injection" },
+        systemPrompt: { type: "string", default: "", description: "Custom system prompt" },
+        dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist"], default: "open" },
+        allowFrom: { type: "array", items: { type: "string" }, description: "Allowed sender IDs" },
+        groupPolicy: { type: "string", enum: ["open", "allowlist"], default: "open" },
+        gatewayToken: { type: "string", default: "", description: "Gateway auth token (Bearer)" },
+        gatewayPassword: { type: "string", default: "", description: "Gateway auth password (alternative to token)" },
+        gatewayBaseUrl: {
+          type: "string",
+          default: "",
+          description: "Custom Gateway URL (e.g., http://127.0.0.1:18788 for Nginx proxy to TLS Gateway)",
+        },
+        sessionTimeout: { type: "number", default: 1800000, description: "Session timeout in ms (default 30min)" },
+        separateSessionByConversation: {
+          type: "boolean",
+          default: true,
+          description: "是否按单聊/群聊/群区分 session",
+        },
+        sharedMemoryAcrossConversations: {
+          type: "boolean",
+          default: false,
+          description: "单 agent 场景下是否共享记忆；false 时不同群聊、群聊与私聊记忆隔离",
+        },
+        asyncMode: {
+          type: "boolean",
+          default: false,
+          description: "Send immediate ack and push final result as a second message",
+        },
+        ackText: {
+          type: "string",
+          default: "🫡 任务已接收，处理中...",
+          description: "Ack text when asyncMode is enabled",
+        },
+        debug: { type: "boolean", default: false },
       },
-      required: ['clientId', 'clientSecret'],
+      required: ["clientId", "clientSecret"],
     },
     uiHints: {
-      enabled: { label: 'Enable DingTalk' },
-      clientId: { label: 'App Key', sensitive: false },
-      clientSecret: { label: 'App Secret', sensitive: true },
-      dmPolicy: { label: 'DM Policy' },
-      groupPolicy: { label: 'Group Policy' },
+      enabled: { label: "Enable DingTalk" },
+      clientId: { label: "App Key", sensitive: false },
+      clientSecret: { label: "App Secret", sensitive: true },
+      dmPolicy: { label: "DM Policy" },
+      groupPolicy: { label: "Group Policy" },
     },
   },
   config: {
     listAccountIds: (cfg: ClawdbotConfig) => {
       const config = getConfig(cfg);
       // __default__ 是内部标记，表示使用顶层配置（单账号模式）
-      return config.accounts
-        ? Object.keys(config.accounts)
-        : (isConfigured(cfg) ? ['__default__'] : []);
+      return config.accounts ? Object.keys(config.accounts) : isConfigured(cfg) ? ["__default__"] : [];
     },
     resolveAccount: (cfg: ClawdbotConfig, accountId?: string) => {
       const config = getConfig(cfg);
@@ -3396,51 +3518,51 @@ const dingtalkPlugin = {
       // 没有 accounts 配置或找不到指定账号时，使用顶层配置
       return { accountId: DEFAULT_ACCOUNT_ID, config, enabled: config.enabled !== false };
     },
-    defaultAccountId: () => '__default__',
+    defaultAccountId: () => "__default__",
     isConfigured: (account: any) => Boolean(account.config?.clientId && account.config?.clientSecret),
     describeAccount: (account: any) => ({
       accountId: account.accountId,
-      name: account.config?.name || 'DingTalk',
+      name: account.config?.name || "DingTalk",
       enabled: account.enabled,
       configured: Boolean(account.config?.clientId),
     }),
   },
   security: {
     resolveDmPolicy: ({ account }: any) => ({
-      policy: account.config?.dmPolicy || 'open',
+      policy: account.config?.dmPolicy || "open",
       allowFrom: account.config?.allowFrom || [],
-      policyPath: 'channels.dingtalk-connector.dmPolicy',
-      allowFromPath: 'channels.dingtalk-connector.allowFrom',
-      approveHint: '使用 /allow dingtalk-connector:<userId> 批准用户',
-      normalizeEntry: (raw: string) => raw.replace(/^(dingtalk-connector|dingtalk|dd|ding):/i, ''),
+      policyPath: "channels.dingtalk-connector.dmPolicy",
+      allowFromPath: "channels.dingtalk-connector.allowFrom",
+      approveHint: "使用 /allow dingtalk-connector:<userId> 批准用户",
+      normalizeEntry: (raw: string) => raw.replace(/^(dingtalk-connector|dingtalk|dd|ding):/i, ""),
     }),
     resolveGroupPolicy: ({ account }: any) => ({
-      policy: account.config?.groupPolicy || 'open',
+      policy: account.config?.groupPolicy || "open",
       allowFrom: account.config?.allowFrom || [],
-      policyPath: 'channels.dingtalk-connector.groupPolicy',
-      allowFromPath: 'channels.dingtalk-connector.allowFrom',
-      approveHint: '使用 /allow dingtalk-connector:<userId> 批准用户',
-      normalizeEntry: (raw: string) => raw.replace(/^(dingtalk-connector|dingtalk|dd|ding):/i, ''),
+      policyPath: "channels.dingtalk-connector.groupPolicy",
+      allowFromPath: "channels.dingtalk-connector.allowFrom",
+      approveHint: "使用 /allow dingtalk-connector:<userId> 批准用户",
+      normalizeEntry: (raw: string) => raw.replace(/^(dingtalk-connector|dingtalk|dd|ding):/i, ""),
     }),
   },
   groups: {
-    resolveRequireMention: ({ cfg }: any) => getConfig(cfg).groupPolicy !== 'open',
+    resolveRequireMention: ({ cfg }: any) => getConfig(cfg).groupPolicy !== "open",
   },
   messaging: {
     // 注意：normalizeTarget 接收字符串，返回字符串（保持大小写，因为 openConversationId 是 base64 编码）
     normalizeTarget: (raw: string) => {
       if (!raw) return undefined;
       // 去掉渠道前缀，但保持原始大小写
-      return raw.trim().replace(/^(dingtalk-connector|dingtalk|dd|ding):/i, '');
+      return raw.trim().replace(/^(dingtalk-connector|dingtalk|dd|ding):/i, "");
     },
     targetResolver: {
       // 支持普通 ID、Base64 编码的 conversationId，以及 user:/group: 前缀格式
       looksLikeId: (v: string) => /^(user:|group:)?[\w+/=-]+$/.test(v),
-      hint: 'user:<userId> 或 group:<conversationId>',
+      hint: "user:<userId> 或 group:<conversationId>",
     },
   },
   outbound: {
-    deliveryMode: 'direct' as const,
+    deliveryMode: "direct" as const,
     textChunkLimit: 4000,
     /**
      * 主动发送文本消息
@@ -3454,11 +3576,11 @@ const dingtalkPlugin = {
       const config = account?.config;
 
       if (!config?.clientId || !config?.clientSecret) {
-        throw new Error('DingTalk not configured');
+        throw new Error("DingTalk not configured");
       }
 
       if (!to) {
-        throw new Error('Target is required. Format: user:<userId> or group:<openConversationId>');
+        throw new Error("Target is required. Format: user:<userId> or group:<openConversationId>");
       }
 
       // 解析目标：user:<userId> 或 group:<openConversationId>
@@ -3467,11 +3589,11 @@ const dingtalkPlugin = {
 
       log?.info?.(`[DingTalk][outbound.sendText] 解析目标: targetStr="${targetStr}"`);
 
-      if (targetStr.startsWith('user:')) {
+      if (targetStr.startsWith("user:")) {
         const userId = targetStr.slice(5);
         log?.info?.(`[DingTalk][outbound.sendText] 发送给用户: userId="${userId}"`);
         result = await sendToUser(config, userId, text, { log });
-      } else if (targetStr.startsWith('group:')) {
+      } else if (targetStr.startsWith("group:")) {
         const openConversationId = targetStr.slice(6);
         log?.info?.(`[DingTalk][outbound.sendText] 发送到群: openConversationId="${openConversationId}"`);
         result = await sendToGroup(config, openConversationId, text, { log });
@@ -3482,9 +3604,9 @@ const dingtalkPlugin = {
       }
 
       if (result.ok) {
-        return { channel: 'dingtalk-connector', messageId: result.processQueryKey || 'unknown' };
+        return { channel: "dingtalk-connector", messageId: result.processQueryKey || "unknown" };
       }
-      throw new Error(result.error || 'Failed to send message');
+      throw new Error(result.error || "Failed to send message");
     },
     /**
      * 主动发送媒体消息（图片）
@@ -3499,11 +3621,11 @@ const dingtalkPlugin = {
       const config = account?.config;
 
       if (!config?.clientId || !config?.clientSecret) {
-        throw new Error('DingTalk not configured');
+        throw new Error("DingTalk not configured");
       }
 
       if (!to) {
-        throw new Error('Target is required. Format: user:<userId> or group:<openConversationId>');
+        throw new Error("Target is required. Format: user:<userId> or group:<openConversationId>");
       }
 
       // 解析目标
@@ -3512,32 +3634,32 @@ const dingtalkPlugin = {
 
       // 如果有媒体 URL，发送图片消息
       if (mediaUrl) {
-        if (targetStr.startsWith('user:')) {
+        if (targetStr.startsWith("user:")) {
           const userId = targetStr.slice(5);
-          result = await sendToUser(config, userId, mediaUrl, { msgType: 'image', log });
-        } else if (targetStr.startsWith('group:')) {
+          result = await sendToUser(config, userId, mediaUrl, { msgType: "image", log });
+        } else if (targetStr.startsWith("group:")) {
           const openConversationId = targetStr.slice(6);
-          result = await sendToGroup(config, openConversationId, mediaUrl, { msgType: 'image', log });
+          result = await sendToGroup(config, openConversationId, mediaUrl, { msgType: "image", log });
         } else {
-          result = await sendToUser(config, targetStr, mediaUrl, { msgType: 'image', log });
+          result = await sendToUser(config, targetStr, mediaUrl, { msgType: "image", log });
         }
       } else {
         // 无媒体，发送文本
-        if (targetStr.startsWith('user:')) {
+        if (targetStr.startsWith("user:")) {
           const userId = targetStr.slice(5);
-          result = await sendToUser(config, userId, text || '', { log });
-        } else if (targetStr.startsWith('group:')) {
+          result = await sendToUser(config, userId, text || "", { log });
+        } else if (targetStr.startsWith("group:")) {
           const openConversationId = targetStr.slice(6);
-          result = await sendToGroup(config, openConversationId, text || '', { log });
+          result = await sendToGroup(config, openConversationId, text || "", { log });
         } else {
-          result = await sendToUser(config, targetStr, text || '', { log });
+          result = await sendToUser(config, targetStr, text || "", { log });
         }
       }
 
       if (result.ok) {
-        return { channel: 'dingtalk-connector', messageId: result.processQueryKey || 'unknown' };
+        return { channel: "dingtalk-connector", messageId: result.processQueryKey || "unknown" };
       }
-      throw new Error(result.error || 'Failed to send media');
+      throw new Error(result.error || "Failed to send media");
     },
   },
   gateway: {
@@ -3546,7 +3668,7 @@ const dingtalkPlugin = {
       const config = account.config;
 
       if (!config.clientId || !config.clientSecret) {
-        throw new Error('DingTalk clientId and clientSecret are required');
+        throw new Error("DingTalk clientId and clientSecret are required");
       }
 
       ctx.log?.info(`[${account.accountId}] 启动钉钉 Stream 客户端...`);
@@ -3586,7 +3708,9 @@ const dingtalkPlugin = {
 
         // 异步处理消息（不阻塞回调确认）
         try {
-          ctx.log?.info?.(`[DingTalk] 原始 data: ${typeof res.data === 'string' ? res.data.slice(0, 500) : JSON.stringify(res.data).slice(0, 500)}`);
+          ctx.log?.info?.(
+            `[DingTalk] 原始 data: ${typeof res.data === "string" ? res.data.slice(0, 500) : JSON.stringify(res.data).slice(0, 500)}`,
+          );
           const data = JSON.parse(res.data);
 
           await handleDingTalkMessage({
@@ -3607,10 +3731,10 @@ const dingtalkPlugin = {
       ctx.log?.info(`[${account.accountId}] 钉钉 Stream 客户端已连接`);
 
       const rt = getRuntime();
-      rt.channel.activity.record('dingtalk-connector', account.accountId, 'start');
+      rt.channel.activity.record("dingtalk-connector", account.accountId, "start");
 
       let stopped = false;
-      
+
       // 【应用层心跳机制】基于 WebSocket ping/pong 的主动心跳检测
       // - 心跳间隔：30 秒
       // - 超时时间：90 秒（允许 3 次 ping 无响应）
@@ -3618,42 +3742,44 @@ const dingtalkPlugin = {
       let lastPongTime = Date.now();
       let pendingPingId: string | null = null;
       const HEARTBEAT_INTERVAL = 30 * 1000; // 30 秒
-      const HEARTBEAT_TIMEOUT = 90 * 1000;  // 90 秒
-      
+      const HEARTBEAT_TIMEOUT = 90 * 1000; // 90 秒
+
       // 监听 pong 响应（SDK 的 keepAlive=false 时仍然会收到服务端的 pong）
-      client.socket?.on('pong', () => {
+      client.socket?.on("pong", () => {
         lastPongTime = Date.now();
         pendingPingId = null;
         ctx.log?.debug?.(`[${account.accountId}] 收到 PONG 响应`);
       });
-      
+
       // 启动心跳检测定时器
       const heartbeatTimer = setInterval(async () => {
         if (stopped) {
           clearInterval(heartbeatTimer);
           return;
         }
-        
+
         const elapsed = Date.now() - lastPongTime;
-        
+
         // 如果超过 90 秒没有收到 pong，认为连接已断开
         if (elapsed > HEARTBEAT_TIMEOUT) {
-          ctx.log?.warn?.(`[${account.accountId}] ⚠️ 心跳超时：已 ${Math.round(elapsed / 1000)} 秒未收到 PONG，触发重连...`);
-          
+          ctx.log?.warn?.(
+            `[${account.accountId}] ⚠️ 心跳超时：已 ${Math.round(elapsed / 1000)} 秒未收到 PONG，触发重连...`,
+          );
+
           // 【关键修复】主动重连：先断开再重新建立连接
           try {
             // 1. 先断开旧连接
             await client.disconnect();
             ctx.log?.info?.(`[${account.accountId}] 已断开旧连接`);
-            
+
             // 2. 重新建立连接
             ctx.log?.info?.(`[${account.accountId}] 正在重新建立连接...`);
             await client.connect();
-            
+
             // 3. 重置最后 pong 时间，避免立即再次触发重连
             lastPongTime = Date.now();
             pendingPingId = null;
-            
+
             ctx.log?.info?.(`[${account.accountId}] ✅ 重连成功`);
           } catch (err: any) {
             ctx.log?.error?.(`[${account.accountId}] ❌ 重连失败：${err.message}`);
@@ -3672,51 +3798,53 @@ const dingtalkPlugin = {
           }
           return;
         }
-        
+
         // 如果还有 ping 在等待响应，检查是否超时
         if (pendingPingId) {
           ctx.log?.debug?.(`[${account.accountId}] 心跳检测：等待 PONG 响应中...`);
           return;
         }
-        
+
         // 主动发送 ping 消息
         try {
           const pingId = `ping_${Date.now()}`;
           pendingPingId = pingId;
-          
+
           // 通过 WebSocket 直接发送 ping（使用 SDK 的 socket）
-          client.socket?.ping(JSON.stringify({
-            type: 'PING',
-            id: pingId,
-            timestamp: Date.now()
-          }));
-          
+          client.socket?.ping(
+            JSON.stringify({
+              type: "PING",
+              id: pingId,
+              timestamp: Date.now(),
+            }),
+          );
+
           ctx.log?.debug?.(`[${account.accountId}] 发送 PING 请求：${pingId}`);
         } catch (err: any) {
           ctx.log?.error?.(`[${account.accountId}] 发送 PING 失败：${err.message}`);
           // 发送失败也计入超时
         }
       }, HEARTBEAT_INTERVAL);
-      
+
       // 统一的停止逻辑
       const doStop = (reason: string) => {
         if (stopped) return;
         stopped = true;
         ctx.log?.info(`[${account.accountId}] 停止钉钉 Stream 客户端 (${reason})...`);
-        
+
         // 清理心跳定时器
-        if (typeof heartbeatTimer !== 'undefined') {
+        if (typeof heartbeatTimer !== "undefined") {
           clearInterval(heartbeatTimer);
           ctx.log?.debug?.(`[${account.accountId}] 心跳定时器已清理`);
         }
-        
+
         try {
           // 【关键】调用 disconnect() 正确关闭 WebSocket 连接
           client.disconnect();
         } catch (err: any) {
           ctx.log?.warn?.(`[${account.accountId}] 断开连接时出错：${err.message}`);
         }
-        rt.channel.activity.record('dingtalk-connector', account.accountId, 'stop');
+        rt.channel.activity.record("dingtalk-connector", account.accountId, "stop");
       };
 
       // 【关键修复】返回一个 Promise 并保持 pending 状态直到 abortSignal 触发
@@ -3724,10 +3852,10 @@ const dingtalkPlugin = {
       // 参考：OpenClaw changelog - "keep startAccount pending until abort to prevent restart-loop storms"
       return new Promise((resolve) => {
         if (abortSignal) {
-          abortSignal.addEventListener('abort', () => {
-            doStop('abortSignal');
+          abortSignal.addEventListener("abort", () => {
+            doStop("abortSignal");
             resolve({
-              stop: () => doStop('manual'),
+              stop: () => doStop("manual"),
               isHealthy: () => !stopped,
             });
           });
@@ -3736,9 +3864,15 @@ const dingtalkPlugin = {
     },
   },
   status: {
-    defaultRuntime: { accountId: DEFAULT_ACCOUNT_ID, running: false, lastStartAt: null, lastStopAt: null, lastError: null },
+    defaultRuntime: {
+      accountId: DEFAULT_ACCOUNT_ID,
+      running: false,
+      lastStartAt: null,
+      lastStopAt: null,
+      lastError: null,
+    },
     probe: async ({ cfg }: any) => {
-      if (!isConfigured(cfg)) return { ok: false, error: 'Not configured' };
+      if (!isConfigured(cfg)) return { ok: false, error: "Not configured" };
       try {
         const config = getConfig(cfg);
         await getAccessToken(config);
@@ -3760,13 +3894,13 @@ const dingtalkPlugin = {
 // ============ 插件注册 ============
 
 const plugin = {
-  id: 'dingtalk-connector',
-  name: 'DingTalk Channel',
-  description: 'DingTalk (钉钉) messaging channel via Stream mode with AI Card streaming',
+  id: "dingtalk-connector",
+  name: "DingTalk Channel",
+  description: "DingTalk (钉钉) messaging channel via Stream mode with AI Card streaming",
   configSchema: {
-    type: 'object',
+    type: "object",
     additionalProperties: true,
-    properties: { enabled: { type: 'boolean', default: true } },
+    properties: { enabled: { type: "boolean", default: true } },
   },
   register(api: ClawdbotPluginApi) {
     runtime = api.runtime;
@@ -3774,12 +3908,12 @@ const plugin = {
 
     // ===== Gateway Methods =====
 
-    api.registerGatewayMethod('dingtalk-connector.status', async ({ respond, cfg }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.status", async ({ respond, cfg }: any) => {
       const result = await dingtalkPlugin.status.probe({ cfg });
       respond(true, result);
     });
 
-    api.registerGatewayMethod('dingtalk-connector.probe', async ({ respond, cfg }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.probe", async ({ respond, cfg }: any) => {
       const result = await dingtalkPlugin.status.probe({ cfg });
       respond(result.ok, result);
     });
@@ -3795,29 +3929,29 @@ const plugin = {
      *   - fallbackToNormal?: AI Card 失败时是否降级到普通消息（默认 true）
      *   - accountId?: 使用的账号 ID（可选，不传则使用默认配置）
      */
-    api.registerGatewayMethod('dingtalk-connector.sendToUser', async ({ respond, cfg, params, log }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.sendToUser", async ({ respond, cfg, params, log }: any) => {
       const { userId, userIds, content, msgType, title, useAICard, fallbackToNormal, accountId } = params || {};
       const account = dingtalkPlugin.config.resolveAccount(cfg, accountId);
 
       if (!account.config?.clientId) {
-        return respond(false, { error: 'DingTalk not configured' });
+        return respond(false, { error: "DingTalk not configured" });
       }
 
       const targetUserIds = userIds || (userId ? [userId] : []);
       if (targetUserIds.length === 0) {
-        return respond(false, { error: 'userId or userIds is required' });
+        return respond(false, { error: "userId or userIds is required" });
       }
 
       if (!content) {
-        return respond(false, { error: 'content is required' });
+        return respond(false, { error: "content is required" });
       }
 
       const result = await sendToUser(account.config, targetUserIds, content, {
         msgType,
         title,
         log,
-        useAICard: useAICard !== false,  // 默认 true
-        fallbackToNormal: fallbackToNormal !== false,  // 默认 true
+        useAICard: useAICard !== false, // 默认 true
+        fallbackToNormal: fallbackToNormal !== false, // 默认 true
       });
       respond(result.ok, result);
     });
@@ -3833,27 +3967,27 @@ const plugin = {
      *   - fallbackToNormal?: AI Card 失败时是否降级到普通消息（默认 true）
      *   - accountId?: 使用的账号 ID（可选，不传则使用默认配置）
      */
-    api.registerGatewayMethod('dingtalk-connector.sendToGroup', async ({ respond, cfg, params, log }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.sendToGroup", async ({ respond, cfg, params, log }: any) => {
       const { openConversationId, content, msgType, title, useAICard, fallbackToNormal, accountId } = params || {};
       const account = dingtalkPlugin.config.resolveAccount(cfg, accountId);
 
       if (!account.config?.clientId) {
-        return respond(false, { error: 'DingTalk not configured' });
+        return respond(false, { error: "DingTalk not configured" });
       }
 
       if (!openConversationId) {
-        return respond(false, { error: 'openConversationId is required' });
+        return respond(false, { error: "openConversationId is required" });
       }
 
       if (!content) {
-        return respond(false, { error: 'content is required' });
+        return respond(false, { error: "content is required" });
       }
 
       const result = await sendToGroup(account.config, openConversationId, content, {
         msgType,
         title,
         log,
-        useAICard: useAICard !== false,  // 默认 true
+        useAICard: useAICard !== false, // 默认 true
         fallbackToNormal: fallbackToNormal !== false,
       });
       respond(result.ok, result);
@@ -3870,31 +4004,31 @@ const plugin = {
      *   - fallbackToNormal?: AI Card 失败时是否降级到普通消息（默认 true）
      *   - accountId?: 账号 ID
      */
-    api.registerGatewayMethod('dingtalk-connector.send', async ({ respond, cfg, params, log }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.send", async ({ respond, cfg, params, log }: any) => {
       const { target, content, message, msgType, title, useAICard, fallbackToNormal, accountId } = params || {};
-      const actualContent = content || message;  // 兼容 message 字段
+      const actualContent = content || message; // 兼容 message 字段
       const account = dingtalkPlugin.config.resolveAccount(cfg, accountId);
 
       log?.info?.(`[DingTalk][Send] 收到请求: params=${JSON.stringify(params)}`);
 
       if (!account.config?.clientId) {
-        return respond(false, { error: 'DingTalk not configured' });
+        return respond(false, { error: "DingTalk not configured" });
       }
 
       if (!target) {
-        return respond(false, { error: 'target is required (format: user:<userId> or group:<openConversationId>)' });
+        return respond(false, { error: "target is required (format: user:<userId> or group:<openConversationId>)" });
       }
 
       if (!actualContent) {
-        return respond(false, { error: 'content is required' });
+        return respond(false, { error: "content is required" });
       }
 
       const targetStr = String(target);
       let sendTarget: { userId?: string; openConversationId?: string };
 
-      if (targetStr.startsWith('user:')) {
+      if (targetStr.startsWith("user:")) {
         sendTarget = { userId: targetStr.slice(5) };
-      } else if (targetStr.startsWith('group:')) {
+      } else if (targetStr.startsWith("group:")) {
         sendTarget = { openConversationId: targetStr.slice(6) };
       } else {
         // 默认当作 userId
@@ -3907,7 +4041,7 @@ const plugin = {
         msgType,
         title,
         log,
-        useAICard: useAICard !== false,  // 默认 true
+        useAICard: useAICard !== false, // 默认 true
         fallbackToNormal: fallbackToNormal !== false,
       });
       respond(result.ok, result);
@@ -3922,23 +4056,23 @@ const plugin = {
      *   - operatorId: 操作者 unionId 或 staffId（会自动转换为 unionId）
      *   - accountId?: 账号 ID
      */
-    api.registerGatewayMethod('dingtalk-connector.docs.read', async ({ respond, cfg, params, log }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.docs.read", async ({ respond, cfg, params, log }: any) => {
       const { docId, operatorId: rawOperatorId, accountId } = params || {};
       const account = dingtalkPlugin.config.resolveAccount(cfg, accountId);
 
       if (!account.config?.clientId) {
-        return respond(false, { error: 'DingTalk not configured' });
+        return respond(false, { error: "DingTalk not configured" });
       }
       if (!docId) {
-        return respond(false, { error: 'docId is required' });
+        return respond(false, { error: "docId is required" });
       }
       if (!rawOperatorId) {
-        return respond(false, { error: 'operatorId (unionId or staffId) is required' });
+        return respond(false, { error: "operatorId (unionId or staffId) is required" });
       }
 
       // 如果 operatorId 不像 unionId（通常以字母数字开头且较长），尝试将 staffId 转为 unionId
       let operatorId = rawOperatorId;
-      if (!rawOperatorId.includes('$')) {
+      if (!rawOperatorId.includes("$")) {
         // 可能已经是 unionId，直接使用；否则尝试转换
         const resolved = await getUnionId(rawOperatorId, account.config, log);
         if (resolved) operatorId = resolved;
@@ -3950,7 +4084,7 @@ const plugin = {
       if (content !== null) {
         respond(true, { content });
       } else {
-        respond(false, { error: 'Failed to read document node' });
+        respond(false, { error: "Failed to read document node" });
       }
     });
 
@@ -3962,15 +4096,15 @@ const plugin = {
      *   - content?: 初始内容
      *   - accountId?: 账号 ID
      */
-    api.registerGatewayMethod('dingtalk-connector.docs.create', async ({ respond, cfg, params, log }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.docs.create", async ({ respond, cfg, params, log }: any) => {
       const { spaceId, title, content, accountId } = params || {};
       const account = dingtalkPlugin.config.resolveAccount(cfg, accountId);
 
       if (!account.config?.clientId) {
-        return respond(false, { error: 'DingTalk not configured' });
+        return respond(false, { error: "DingTalk not configured" });
       }
       if (!spaceId || !title) {
-        return respond(false, { error: 'spaceId and title are required' });
+        return respond(false, { error: "spaceId and title are required" });
       }
 
       const client = new DingtalkDocsClient(account.config, log);
@@ -3979,7 +4113,7 @@ const plugin = {
       if (doc) {
         respond(true, doc);
       } else {
-        respond(false, { error: 'Failed to create document' });
+        respond(false, { error: "Failed to create document" });
       }
     });
 
@@ -3990,20 +4124,20 @@ const plugin = {
      *   - content: 要追加的内容
      *   - accountId?: 账号 ID
      */
-    api.registerGatewayMethod('dingtalk-connector.docs.append', async ({ respond, cfg, params, log }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.docs.append", async ({ respond, cfg, params, log }: any) => {
       const { docId, content, accountId } = params || {};
       const account = dingtalkPlugin.config.resolveAccount(cfg, accountId);
 
       if (!account.config?.clientId) {
-        return respond(false, { error: 'DingTalk not configured' });
+        return respond(false, { error: "DingTalk not configured" });
       }
       if (!docId || !content) {
-        return respond(false, { error: 'docId and content are required' });
+        return respond(false, { error: "docId and content are required" });
       }
 
       const client = new DingtalkDocsClient(account.config, log);
       const ok = await client.appendToDoc(docId, content);
-      respond(ok, ok ? { success: true } : { error: 'Failed to append to document' });
+      respond(ok, ok ? { success: true } : { error: "Failed to append to document" });
     });
 
     /**
@@ -4013,15 +4147,15 @@ const plugin = {
      *   - spaceId?: 空间 ID（可选）
      *   - accountId?: 账号 ID
      */
-    api.registerGatewayMethod('dingtalk-connector.docs.search', async ({ respond, cfg, params, log }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.docs.search", async ({ respond, cfg, params, log }: any) => {
       const { keyword, spaceId, accountId } = params || {};
       const account = dingtalkPlugin.config.resolveAccount(cfg, accountId);
 
       if (!account.config?.clientId) {
-        return respond(false, { error: 'DingTalk not configured' });
+        return respond(false, { error: "DingTalk not configured" });
       }
       if (!keyword) {
-        return respond(false, { error: 'keyword is required' });
+        return respond(false, { error: "keyword is required" });
       }
 
       const client = new DingtalkDocsClient(account.config, log);
@@ -4036,15 +4170,15 @@ const plugin = {
      *   - parentId?: 父目录 ID（可选）
      *   - accountId?: 账号 ID
      */
-    api.registerGatewayMethod('dingtalk-connector.docs.list', async ({ respond, cfg, params, log }: any) => {
+    api.registerGatewayMethod("dingtalk-connector.docs.list", async ({ respond, cfg, params, log }: any) => {
       const { spaceId, parentId, accountId } = params || {};
       const account = dingtalkPlugin.config.resolveAccount(cfg, accountId);
 
       if (!account.config?.clientId) {
-        return respond(false, { error: 'DingTalk not configured' });
+        return respond(false, { error: "DingTalk not configured" });
       }
       if (!spaceId) {
-        return respond(false, { error: 'spaceId is required' });
+        return respond(false, { error: "spaceId is required" });
       }
 
       const client = new DingtalkDocsClient(account.config, log);
@@ -4052,7 +4186,7 @@ const plugin = {
       respond(true, { docs });
     });
 
-    api.logger?.info('[DingTalk] 插件已注册（支持主动发送 AI Card 消息、文档读写）');
+    api.logger?.info("[DingTalk] 插件已注册（支持主动发送 AI Card 消息、文档读写）");
   },
 };
 

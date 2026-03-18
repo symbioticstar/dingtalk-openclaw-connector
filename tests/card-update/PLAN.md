@@ -14,16 +14,15 @@
 
 ## 2. 用例表（覆盖现有测试）
 
-| 序号 | 场景 | 期望 | 说明 |
-|------|------|------|------|
-| 1 | createAICard：单聊（conversationType='1'） | 成功创建并投放到 `dtv1.card//IM_ROBOT.<userId>` | user 目标选择正确 |
-| 2 | createAICard：群聊（conversationType='2'） | 成功创建并投放到 `dtv1.card//IM_GROUP.<openConversationId>` | group 目标选择正确 |
-| 3 | streamAICard：首次调用 | 先 PUT INPUTING，再 PUT streaming；并把 `card.inputingStarted=true` | 状态机契约 |
-| 4 | streamAICard：后续调用 | 仅 PUT streaming（不再重复 INPUTING） | 避免多余状态切换 |
-| 5 | finishAICard | streaming `isFinalize=true`，并 PUT FINISHED（flowStatus='3'） | 完成闭环 |
+| 序号 | 场景                                       | 期望                                                                | 说明               |
+| ---- | ------------------------------------------ | ------------------------------------------------------------------- | ------------------ |
+| 1    | createAICard：单聊（conversationType='1'） | 成功创建并投放到 `dtv1.card//IM_ROBOT.<userId>`                     | user 目标选择正确  |
+| 2    | createAICard：群聊（conversationType='2'） | 成功创建并投放到 `dtv1.card//IM_GROUP.<openConversationId>`         | group 目标选择正确 |
+| 3    | streamAICard：首次调用                     | 先 PUT INPUTING，再 PUT streaming；并把 `card.inputingStarted=true` | 状态机契约         |
+| 4    | streamAICard：后续调用                     | 仅 PUT streaming（不再重复 INPUTING）                               | 避免多余状态切换   |
+| 5    | finishAICard                               | streaming `isFinalize=true`，并 PUT FINISHED（flowStatus='3'）      | 完成闭环           |
 
 ## 3. 预期正确输出与潜在错误
 
 - **正确**：create 时目标选择与投放 `openSpaceId` 正确；stream/finish 的状态机顺序正确且不会重复 INPUTING；finish 会 finalize streaming 并设置 FINISHED。
 - **潜在错误原因**：conversationType 判断反了导致 user/group 投放错；streamAICard 忘记先 INPUTING 或重复 INPUTING；finishAICard 未 finalize streaming；flowStatus 值写错导致客户端状态异常。
-

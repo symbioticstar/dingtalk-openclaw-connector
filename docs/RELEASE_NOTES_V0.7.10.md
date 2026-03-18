@@ -16,18 +16,19 @@
 
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
-      "enabled": true,
-      "clientId": "dingxxxxxxxxx",
-      "clientSecret": "your_secret_here",
-      "groupPolicy": "allowlist",   // 启用群聊白名单拦截
-      "allowFrom": [                // 允许的用户 staffId 列表
+      enabled: true,
+      clientId: "dingxxxxxxxxx",
+      clientSecret: "your_secret_here",
+      groupPolicy: "allowlist", // 启用群聊白名单拦截
+      allowFrom: [
+        // 允许的用户 staffId 列表
         "user_staff_id_1",
-        "user_staff_id_2"
-      ]
-    }
-  }
+        "user_staff_id_2",
+      ],
+    },
+  },
 }
 ```
 
@@ -37,19 +38,19 @@
 
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
-      "dmPolicy": "allowlist",
-      "groupPolicy": "allowlist",
-      "allowFrom": ["staff_id_1", "staff_id_2"]
-    }
-  }
+      dmPolicy: "allowlist",
+      groupPolicy: "allowlist",
+      allowFrom: ["staff_id_1", "staff_id_2"],
+    },
+  },
 }
 ```
 
 ## ⚠️ 升级注意事项 / Upgrade Notes
 
-- **向下兼容 / Backward Compatible**：`groupPolicy` 默认值仍为 `'open'`，现有未配置白名单的用户不受影响。  
+- **向下兼容 / Backward Compatible**：`groupPolicy` 默认值仍为 `'open'`，现有未配置白名单的用户不受影响。
 - **仅影响 `allowlist` 模式**：只有显式设置 `groupPolicy: 'allowlist'` 且 `allowFrom` 非空时，群聊拦截才会生效。
 
 ## 📥 安装升级 / Installation & Upgrade
