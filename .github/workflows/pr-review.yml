@@ -20,7 +20,7 @@ jobs:
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          
+
           curl -X POST "${{ secrets.DINGTALK_WEBHOOK }}" \
             -H "Content-Type: application/json" \
             -d "{
@@ -45,7 +45,7 @@ jobs:
           PR_URL="${{ github.event.pull_request.html_url }}"
           REVIEWER="${{ github.event.review.user.login }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          
+
           if [ "$REVIEW_STATE" == "approved" ]; then
             EMOJI="✅"
             STATUS="已通过"
@@ -56,7 +56,7 @@ jobs:
             EMOJI="💬"
             STATUS="已评论"
           fi
-          
+
           curl -X POST "${{ secrets.DINGTALK_WEBHOOK }}" \
             -H "Content-Type: application/json" \
             -d "{
@@ -82,9 +82,9 @@ jobs:
           # 检查是否满足自动合并条件
           REVIEWS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews")
-          
+
           APPROVALS=$(echo "$REVIEWS" | grep -c '"state": "APPROVED"' || true)
-          
+
           echo "approvals=$APPROVALS" >> $GITHUB_OUTPUT
           echo "✅ 当前 approvals: $APPROVALS"
 
@@ -94,7 +94,7 @@ jobs:
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
-          
+
           curl -X POST "${{ secrets.DINGTALK_WEBHOOK }}" \
             -H "Content-Type: application/json" \
             -d "{

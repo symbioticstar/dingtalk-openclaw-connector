@@ -9,6 +9,7 @@ This update brings rich media and document processing capabilities, enabling AI 
 ## ✨ 新增功能 / Added Features
 
 ### 富媒体接收支持 / Rich Media Reception Support
+
 - ✅ **JPEG 图片消息** - 支持接收钉钉中直接发送的 JPEG 图片，自动下载到 `~/.openclaw/workspace/media/inbound/` 目录  
   **JPEG Image Messages** - Support receiving JPEG images sent directly in DingTalk, automatically downloaded to `~/.openclaw/workspace/media/inbound/` directory
 - ✅ **PNG 图片（富文本）** - 支持接收富文本消息中包含的 PNG 图片，自动提取 URL 和 downloadCode 并下载  
@@ -19,6 +20,7 @@ This update brings rich media and document processing capabilities, enabling AI 
   **Media File Management** - Unified file naming format `openclaw-media-{timestamp}.{ext}` for easy management and tracking
 
 ### 文件附件提取 / File Attachment Extraction
+
 - ✅ **Word 文档解析** - 支持解析 `.docx` 文件，通过 `mammoth` 库提取文本内容并注入到 AI 上下文  
   **Word Document Parsing** - Support parsing `.docx` files, extract text content via `mammoth` library and inject into AI context
 - ✅ **PDF 文档解析** - 支持解析 `.pdf` 文件，通过 `pdf-parse` 库提取文本内容并注入到 AI 上下文  
@@ -29,6 +31,7 @@ This update brings rich media and document processing capabilities, enabling AI 
   **Binary File Processing** - Support processing binary files (`.xlsx`, `.pptx`, `.zip`, etc.), files saved to disk and paths reported in messages
 
 ### 钉钉文档 API / DingTalk Document API
+
 - ✅ **创建文档** - `docs.create()` - 在指定空间中创建新的钉钉文档  
   **Create Document** - `docs.create()` - Create new DingTalk documents in specified spaces
 - ✅ **追加内容** - `docs.append()` - 在现有文档上追加 Markdown 内容  
@@ -41,6 +44,7 @@ This update brings rich media and document processing capabilities, enabling AI 
   **Read Document** - `docs.read()` - Currently unavailable (see Known Issues)
 
 ### 多 Agent 路由支持 / Multi-Agent Routing Support
+
 - ✅ **多 Agent 会话隔离** - 支持一个连接器实例同时连接多个 Agent  
   **Multi-Agent Session Isolation** - Support one connector instance connecting to multiple Agents simultaneously
 - ✅ **多机器人绑定** - 支持多个钉钉机器人分别绑定到不同的 Agent，实现角色分工和专业化服务  

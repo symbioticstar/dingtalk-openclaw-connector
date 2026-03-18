@@ -1,18 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
-import { __testables } from '../../plugin';
+import { describe, it, expect, vi } from "vitest";
+import { __testables } from "../../plugin";
 
 const { processVideoMarkers } = __testables as any;
 
-describe('video markers processing', () => {
+describe("video markers processing", () => {
   const dummyConfig = {};
-  const dummyWebhook = 'https://example.com/webhook';
+  const dummyWebhook = "https://example.com/webhook";
   const log = {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
   };
 
-  it('should bypass processing when oapiToken is null', async () => {
+  it("should bypass processing when oapiToken is null", async () => {
     const content = 'hello [DINGTALK_VIDEO]{"path":"/tmp/a.mp4"}[/DINGTALK_VIDEO]';
     const result = await processVideoMarkers(content, dummyWebhook, dummyConfig, null, log);
 
@@ -21,20 +21,19 @@ describe('video markers processing', () => {
     expect(log.warn).toHaveBeenCalled();
   });
 
-  it('should keep content when no markers present', async () => {
-    const content = 'plain text without markers';
-    const result = await processVideoMarkers(content, dummyWebhook, dummyConfig, 'token', log);
+  it("should keep content when no markers present", async () => {
+    const content = "plain text without markers";
+    const result = await processVideoMarkers(content, dummyWebhook, dummyConfig, "token", log);
 
     expect(result).toBe(content);
     expect(log.info).toHaveBeenCalled();
   });
 
-  it('should ignore invalid json markers gracefully', async () => {
-    const content = 'text [DINGTALK_VIDEO]{invalid-json}[/DINGTALK_VIDEO]';
-    const result = await processVideoMarkers(content, dummyWebhook, dummyConfig, 'token', log);
+  it("should ignore invalid json markers gracefully", async () => {
+    const content = "text [DINGTALK_VIDEO]{invalid-json}[/DINGTALK_VIDEO]";
+    const result = await processVideoMarkers(content, dummyWebhook, dummyConfig, "token", log);
 
-    expect(result).toBe('text');
+    expect(result).toBe("text");
     expect(log.warn).toHaveBeenCalled();
   });
 });
-

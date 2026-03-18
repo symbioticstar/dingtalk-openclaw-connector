@@ -32,22 +32,22 @@
 
 ### AI 卡片模版 & 内容处理 / AI Card Template & Content Handling
 
-- 更新 `AI_CARD_TEMPLATE_ID` 为新的模版 ID，以匹配最新的钉钉 AI 卡片样式规范。  
-- 新增 `ensureTableBlankLines(text: string)` 工具函数：  
-  - 将文本按行拆分，识别包含竖线的表格行与 `---` 分隔行。  
-  - 当前行看起来像表头、下一行是分隔行、且前一行既不是空行也不是表格行时，会在表头前插入一个空行。  
-  - 支持带缩进的表格写法，保持原有内容顺序与缩进风格不变。  
-- 在以下路径中统一使用 `ensureTableBlankLines`：  
-  - AI 卡片流式内容更新（`streamAICard`）中的 `content` 字段。  
-  - AI 卡片结束时（`finishAICard`）的最终内容与日志长度统计。  
-  - 普通 Markdown 消息发送（`sendMarkdownMessage`），在追加 `@user` 之前先做表格修正。  
-  - `buildMsgPayload` 中 `sampleMarkdown` 类型的 `text` 字段。  
+- 更新 `AI_CARD_TEMPLATE_ID` 为新的模版 ID，以匹配最新的钉钉 AI 卡片样式规范。
+- 新增 `ensureTableBlankLines(text: string)` 工具函数：
+  - 将文本按行拆分，识别包含竖线的表格行与 `---` 分隔行。
+  - 当前行看起来像表头、下一行是分隔行、且前一行既不是空行也不是表格行时，会在表头前插入一个空行。
+  - 支持带缩进的表格写法，保持原有内容顺序与缩进风格不变。
+- 在以下路径中统一使用 `ensureTableBlankLines`：
+  - AI 卡片流式内容更新（`streamAICard`）中的 `content` 字段。
+  - AI 卡片结束时（`finishAICard`）的最终内容与日志长度统计。
+  - 普通 Markdown 消息发送（`sendMarkdownMessage`），在追加 `@user` 之前先做表格修正。
+  - `buildMsgPayload` 中 `sampleMarkdown` 类型的 `text` 字段。
 - 为单元测试导出 `__testables.ensureTableBlankLines`，便于在不依赖具体业务逻辑的情况下验证 Markdown 修正规则。
 
 ### 消息去重逻辑 / Message De-duplication Logic
 
-- 去重检查由 `isMessageProcessed(accountId, messageId)` 简化为 `isMessageProcessed(messageId)`，对同一消息 ID 统一判重。  
-- 标记逻辑由 `markMessageProcessed(accountId, messageId)` 更新为 `markMessageProcessed(messageId)`，减少多账号场景下可能出现的重复处理路径。  
+- 去重检查由 `isMessageProcessed(accountId, messageId)` 简化为 `isMessageProcessed(messageId)`，对同一消息 ID 统一判重。
+- 标记逻辑由 `markMessageProcessed(accountId, messageId)` 更新为 `markMessageProcessed(messageId)`，减少多账号场景下可能出现的重复处理路径。
 - 保持原有日志信息与跳过处理分支不变，仅调整内部去重键值结构。
 
 ## 📥 安装升级 / Installation & Upgrade
@@ -67,24 +67,24 @@ openclaw plugins install https://github.com/DingTalk-Real-AI/dingtalk-openclaw-c
 
 ### 兼容性说明 / Compatibility Notes
 
-- **向下兼容 / Backward Compatible**：本次为小版本修复和体验优化更新，在保留 v0.7.x 既有行为的前提下增强了 Markdown 表格渲染与消息去重逻辑，对现有配置完全兼容。  
-- **Markdown 表格渲染更稳定 / More Robust Markdown Tables**：即便原始内容中未严格遵守表格前空行的写法，Connector 也会自动做最小化修正，以提高在钉钉中的可读性。  
+- **向下兼容 / Backward Compatible**：本次为小版本修复和体验优化更新，在保留 v0.7.x 既有行为的前提下增强了 Markdown 表格渲染与消息去重逻辑，对现有配置完全兼容。
+- **Markdown 表格渲染更稳定 / More Robust Markdown Tables**：即便原始内容中未严格遵守表格前空行的写法，Connector 也会自动做最小化修正，以提高在钉钉中的可读性。
 - **消息去重语义更清晰 / Clearer De-duplication Semantics**：以 `messageId` 为唯一维度进行去重，更贴合钉钉消息唯一标识的语义。
 
 ### 验证步骤 / Verification Steps
 
 升级到此版本后，建议进行以下验证：
 
-1. **AI 卡片模版与渲染验证 / AI Card Template & Rendering Verification**  
-   - 触发一次典型的 AI 卡片对话，观察新模版下的卡片布局与字段展示是否符合预期。  
-   - 在含有多段文字与表格的回复中，确认卡片内 Markdown 表格渲染正常。  
+1. **AI 卡片模版与渲染验证 / AI Card Template & Rendering Verification**
+   - 触发一次典型的 AI 卡片对话，观察新模版下的卡片布局与字段展示是否符合预期。
+   - 在含有多段文字与表格的回复中，确认卡片内 Markdown 表格渲染正常。
 
-2. **Markdown 表格兼容性验证 / Markdown Table Compatibility Verification**  
-   - 通过机器人发送包含 Markdown 表格的消息（包含表头、分隔行与多列数据），且故意在表格前省略空行。  
-   - 在移动端及 PC 端查看，确认钉钉能够正确以表格形式渲染内容。  
+2. **Markdown 表格兼容性验证 / Markdown Table Compatibility Verification**
+   - 通过机器人发送包含 Markdown 表格的消息（包含表头、分隔行与多列数据），且故意在表格前省略空行。
+   - 在移动端及 PC 端查看，确认钉钉能够正确以表格形式渲染内容。
 
-3. **消息去重行为验证 / Message De-duplication Behavior Verification**  
-   - 在相同会话中模拟重复推送同一个 `messageId` 的回调（或快速重复发送同一条消息）。  
+3. **消息去重行为验证 / Message De-duplication Behavior Verification**
+   - 在相同会话中模拟重复推送同一个 `messageId` 的回调（或快速重复发送同一条消息）。
    - 确认日志中出现去重命中提示，并且业务处理逻辑只执行一次。
 
 ## 🔗 相关链接 / Related Links
@@ -98,4 +98,3 @@ openclaw plugins install https://github.com/DingTalk-Real-AI/dingtalk-openclaw-c
 **发布日期 / Release Date**：2026-03-13  
 **版本号 / Version**：v0.7.8  
 **兼容性 / Compatibility**：OpenClaw Gateway 0.4.0+
-

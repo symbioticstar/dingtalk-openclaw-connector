@@ -24,14 +24,14 @@
 
 ### 应用层心跳机制 / Application-Layer Heartbeat
 
-- **参数**：心跳间隔 30 秒（`HEARTBEAT_INTERVAL`），超时 90 秒（`HEARTBEAT_TIMEOUT`），允许约 3 次 ping 无响应后再判定超时。  
-- **流程**：定时器每 30 秒通过 `client.socket?.ping()` 发送 ping；监听 `socket.on('pong')` 更新 `lastPongTime`；若当前时间与 `lastPongTime` 差值超过 90 秒则触发重连。  
-- **重连**：先 `await client.disconnect()`，再 `await client.connect()`，成功后重置 `lastPongTime`；若重连失败则 5 秒后再次尝试 `client.connect()`。  
+- **参数**：心跳间隔 30 秒（`HEARTBEAT_INTERVAL`），超时 90 秒（`HEARTBEAT_TIMEOUT`），允许约 3 次 ping 无响应后再判定超时。
+- **流程**：定时器每 30 秒通过 `client.socket?.ping()` 发送 ping；监听 `socket.on('pong')` 更新 `lastPongTime`；若当前时间与 `lastPongTime` 差值超过 90 秒则触发重连。
+- **重连**：先 `await client.disconnect()`，再 `await client.connect()`，成功后重置 `lastPongTime`；若重连失败则 5 秒后再次尝试 `client.connect()`。
 - **停止**：`doStop(reason)` 中设置 `stopped = true`、清除心跳定时器、调用 `client.disconnect()`，并记录停止原因与活动。
 
 ### DWClient 配置说明 / DWClient Config
 
-- `autoReconnect: true` — 连接断开时由 SDK 参与自动重连。  
+- `autoReconnect: true` — 连接断开时由 SDK 参与自动重连。
 - `keepAlive: false` — 关闭 SDK 内置的激进心跳，避免 8 秒无活动即强制断连，由应用层 30s/90s 心跳替代。
 
 ## 📥 安装升级 / Installation & Upgrade
@@ -49,7 +49,7 @@ openclaw plugins install https://github.com/DingTalk-Real-AI/dingtalk-openclaw-c
 
 ## ⚠️ 升级注意事项 / Upgrade Notes
 
-- **向下兼容 / Backward Compatible**：仅调整 Stream 客户端的心跳与重连策略，对现有配置与 API 无破坏性变更。  
+- **向下兼容 / Backward Compatible**：仅调整 Stream 客户端的心跳与重连策略，对现有配置与 API 无破坏性变更。
 - **长连场景建议**：若依赖钉钉 Stream 长连接，升级后将自动使用新的心跳与重连逻辑，无需额外配置。
 
 ## 🔗 相关链接 / Related Links

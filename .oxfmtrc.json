@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 120,
+  "indentStyle": "space",
+  "indentWidth": 2,
+  "overrides": [
+    {
+      "files": ["*.test.ts", "*.spec.ts"],
+      "options": {
+        "printWidth": 140
+      }
+    }
+  ]
+}

@@ -15,6 +15,7 @@ This update primarily fixes Stream client frequent reconnection and incomplete c
 `DWClient` built-in `autoReconnect` conflicts with framework's health-monitor reconnection mechanism, causing frequent client reconnections and affecting system stability.
 
 **修复内容 / Fix**：
+
 - 禁用 `DWClient` 内置的 `autoReconnect`  
   Disabled `DWClient` built-in `autoReconnect`
 - 由框架的 health-monitor 统一管理重连逻辑  
@@ -33,6 +34,7 @@ Affects all users using Stream mode. After the fix, reconnection logic is more s
 `stop()` method did not correctly close WebSocket connection, causing resource leaks and connection state anomalies.
 
 **修复内容 / Fix**：
+
 - `stop()` 方法现在正确调用 `client.disconnect()` 关闭 WebSocket 连接  
   `stop()` method now correctly calls `client.disconnect()` to close WebSocket connection
 - 确保连接资源正确释放  
@@ -49,6 +51,7 @@ Affects all users using the connector. After the fix, connection closure is more
 Issue where connection fails after modifying gateway port.
 
 **修复内容 / Fix**：
+
 - 修复端口配置更新后的连接逻辑  
   Fixed connection logic after port configuration update
 - 确保端口变更后能够正确连接  
@@ -63,6 +66,7 @@ Affects users who modified Gateway port. After the fix, connection works normall
 ### 1. OpenClaw session.dmScope 机制 / OpenClaw session.dmScope Mechanism
 
 **重构内容 / Refactoring**：
+
 - 会话管理由 OpenClaw Gateway 统一处理  
   Session management is now handled by OpenClaw Gateway
 - 插件不再内部管理会话超时  
@@ -71,6 +75,7 @@ Affects users who modified Gateway port. After the fix, connection works normall
   Use Gateway's `session.reset.idleMinutes` configuration to control session timeout
 
 **优势 / Benefits**：
+
 - ✅ 统一会话管理，减少重复逻辑  
   Unified session management, reducing duplicate logic
 - ✅ 配置更加集中和标准化  
@@ -85,6 +90,7 @@ Architecture-level improvement, does not affect user usage, but improves system 
 ### 2. SessionContext 标准化 / SessionContext Standardization
 
 **重构内容 / Refactoring**：
+
 - 使用 OpenClaw 标准的 SessionContext JSON 格式传递会话上下文  
   Use OpenClaw standard SessionContext JSON format for session context
 - 统一会话上下文的数据结构  
@@ -93,6 +99,7 @@ Architecture-level improvement, does not affect user usage, but improves system 
   Improve compatibility with Gateway
 
 **优势 / Benefits**：
+
 - ✅ 标准化格式，便于 Gateway 解析和处理  
   Standardized format, easier for Gateway to parse and process
 - ✅ 提高数据一致性和可预测性  
@@ -108,38 +115,38 @@ Internal implementation improvement, does not affect user usage, but improves co
 
 ### 新增配置项 / New Configuration Options
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
+| 配置项              | 类型                          | 默认值    | 说明                                                                                                            |
+| ------------------- | ----------------------------- | --------- | --------------------------------------------------------------------------------------------------------------- |
 | `groupSessionScope` | `'group'` \| `'group_sender'` | `'group'` | 群聊会话隔离策略（仅当 separateSessionByConversation=true 时生效）：`group`=群共享，`group_sender`=群内用户独立 |
 
 ### 废弃配置项 / Deprecated Configuration Options
 
-| 配置项 | 状态 | 替代方案 | 说明 |
-|--------|------|----------|------|
+| 配置项           | 状态      | 替代方案                               | 说明                                                                                                          |
+| ---------------- | --------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `sessionTimeout` | ⚠️ 已废弃 | Gateway 的 `session.reset.idleMinutes` | 会话超时由 OpenClaw Gateway 统一管理，详见 [Gateway 配置文档](https://docs.openclaw.ai/gateway/configuration) |
 
 ### 配置示例 / Configuration Example
 
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
-      "enabled": true,
-      "clientId": "dingxxxxxxxxx",
-      "clientSecret": "your_secret_here",
-      "separateSessionByConversation": true,
-      "groupSessionScope": "group",  // 新增：群聊会话隔离策略
+      enabled: true,
+      clientId: "dingxxxxxxxxx",
+      clientSecret: "your_secret_here",
+      separateSessionByConversation: true,
+      groupSessionScope: "group", // 新增：群聊会话隔离策略
       // "sessionTimeout": 30  // ⚠️ 已废弃，请使用 Gateway 配置
-    }
+    },
   },
   // Gateway 配置示例
-  "gateway": {
-    "session": {
-      "reset": {
-        "idleMinutes": 30  // 会话超时配置
-      }
-    }
-  }
+  gateway: {
+    session: {
+      reset: {
+        idleMinutes: 30, // 会话超时配置
+      },
+    },
+  },
 }
 ```
 
@@ -193,31 +200,33 @@ After upgrading to this version:
 ### sessionTimeout 迁移步骤 / sessionTimeout Migration Steps
 
 **迁移前 / Before**：
+
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
-      "sessionTimeout": 30  // ⚠️ 已废弃
-    }
-  }
+      sessionTimeout: 30, // ⚠️ 已废弃
+    },
+  },
 }
 ```
 
 **迁移后 / After**：
+
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
       // 移除 sessionTimeout 配置
-    }
+    },
   },
-  "gateway": {
-    "session": {
-      "reset": {
-        "idleMinutes": 30  // 使用 Gateway 配置
-      }
-    }
-  }
+  gateway: {
+    session: {
+      reset: {
+        idleMinutes: 30, // 使用 Gateway 配置
+      },
+    },
+  },
 }
 ```
 
@@ -226,12 +235,14 @@ After upgrading to this version:
 ### 内部实现变更 / Internal Implementation Changes
 
 **变更前 / Before**：
+
 - `DWClient` 启用 `autoReconnect`，与框架重连机制冲突
 - 插件内部管理会话超时
 - `stop()` 方法未正确关闭 WebSocket 连接
 - SessionContext 格式不统一
 
 **变更后 / After**：
+
 - `DWClient` 禁用 `autoReconnect`，由框架统一管理重连
 - 会话超时由 Gateway 统一管理
 - `stop()` 方法正确调用 `client.disconnect()` 关闭连接
@@ -240,9 +251,11 @@ After upgrading to this version:
 ### 相关代码位置 / Related Code Locations
 
 主要修改文件：
+
 - `plugin.ts` - 核心逻辑修改
 
 关键变更点：
+
 - `DWClient` 初始化时的 `autoReconnect` 配置
 - `stop()` 方法中的连接关闭逻辑
 - SessionContext 格式标准化

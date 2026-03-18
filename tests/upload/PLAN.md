@@ -24,49 +24,48 @@
 
 ### 2.1 uploadMediaToDingTalk
 
-| 序号 | 场景 | mock 返回 | 期望 | 说明 |
-|------|------|-----------|------|------|
-| 1 | 上传成功 | `errcode=0, media_id=media123` | 返回 `'media123'` | 主路径 |
-| 2 | 上传失败 | `errcode!=0` | 返回 null | 业务失败 |
-| 3 | 网络异常 | axios.post 抛错 | 返回 null | 错误收敛 |
-| 4 | 多媒体类型 | image/file/video/voice | 不抛错且 post 被调用 | 类型分支覆盖 |
+| 序号 | 场景       | mock 返回                      | 期望                 | 说明         |
+| ---- | ---------- | ------------------------------ | -------------------- | ------------ |
+| 1    | 上传成功   | `errcode=0, media_id=media123` | 返回 `'media123'`    | 主路径       |
+| 2    | 上传失败   | `errcode!=0`                   | 返回 null            | 业务失败     |
+| 3    | 网络异常   | axios.post 抛错                | 返回 null            | 错误收敛     |
+| 4    | 多媒体类型 | image/file/video/voice         | 不抛错且 post 被调用 | 类型分支覆盖 |
 
 ### 2.2 downloadImageToFile / downloadMediaByCode / downloadFileByCode
 
-| 序号 | 场景 | mock | 期望 |
-|------|------|------|------|
-| 5 | downloadImageToFile 成功 | axios.get 返回 Buffer | 返回非空路径 |
-| 6 | downloadImageToFile 失败 | axios.get 抛错 | 返回 null |
-| 7 | downloadMediaByCode 成功 | axios.get/post 返回可用结构 | 返回非空结果 |
-| 8 | downloadMediaByCode API 错误 | errcode!=0 | 返回 null |
-| 9 | downloadFileByCode 成功 | axios.get 返回 Buffer | 返回非空结果 |
-| 10 | downloadFileByCode 失败 | axios.get 抛错 | 返回 null |
+| 序号 | 场景                         | mock                        | 期望         |
+| ---- | ---------------------------- | --------------------------- | ------------ |
+| 5    | downloadImageToFile 成功     | axios.get 返回 Buffer       | 返回非空路径 |
+| 6    | downloadImageToFile 失败     | axios.get 抛错              | 返回 null    |
+| 7    | downloadMediaByCode 成功     | axios.get/post 返回可用结构 | 返回非空结果 |
+| 8    | downloadMediaByCode API 错误 | errcode!=0                  | 返回 null    |
+| 9    | downloadFileByCode 成功      | axios.get 返回 Buffer       | 返回非空结果 |
+| 10   | downloadFileByCode 失败      | axios.get 抛错              | 返回 null    |
 
 ### 2.3 extractVideoMetadata / extractVideoThumbnail
 
-| 序号 | 场景 | 输入 | 期望 | 说明 |
-|------|------|------|------|------|
-| 11 | 元信息提取（容错） | 任意路径 | 返回对象（不为 undefined） | 无 ffmpeg 也不应崩溃 |
-| 12 | 元信息失败回退 | 不存在路径 | 返回对象 | 默认值 |
-| 13 | 缩略图提取（容错） | 任意路径 | 返回 string 或 null | 不要求真实生成；失败不应抛异常 |
+| 序号 | 场景               | 输入       | 期望                       | 说明                           |
+| ---- | ------------------ | ---------- | -------------------------- | ------------------------------ |
+| 11   | 元信息提取（容错） | 任意路径   | 返回对象（不为 undefined） | 无 ffmpeg 也不应崩溃           |
+| 12   | 元信息失败回退     | 不存在路径 | 返回对象                   | 默认值                         |
+| 13   | 缩略图提取（容错） | 任意路径   | 返回 string 或 null        | 不要求真实生成；失败不应抛异常 |
 
 ### 2.4 processLocalImages
 
-| 序号 | 场景 | 输入 | 期望 | 说明 |
-|------|------|------|------|------|
-| 14 | 本地图片存在 | `![image](/tmp/image.png)` + existsSync=true | 返回处理后的字符串 | 上传替换 |
-| 15 | 本地图片缺失 | existsSync=false | 返回处理后的字符串 | 不应抛错 |
+| 序号 | 场景         | 输入                                         | 期望               | 说明     |
+| ---- | ------------ | -------------------------------------------- | ------------------ | -------- |
+| 14   | 本地图片存在 | `![image](/tmp/image.png)` + existsSync=true | 返回处理后的字符串 | 上传替换 |
+| 15   | 本地图片缺失 | existsSync=false                             | 返回处理后的字符串 | 不应抛错 |
 
-### 2.5 process*Markers
+### 2.5 process\*Markers
 
-| 序号 | 场景 | 输入 | 期望 |
-|------|------|------|------|
-| 16 | video marker（文件不存在） | `hello [DINGTALK_VIDEO]{"path":"/tmp/video.mp4"}[/DINGTALK_VIDEO] world` | 标记被移除；返回内容包含原文本并给出告警/提示 |
-| 17 | file marker（存在文件） | `[DINGTALK_FILE]{"path":"/tmp/file.pdf","fileName":"file.pdf","fileType":"pdf"}[/DINGTALK_FILE]` | 标记被移除；触发 `media/upload&type=file` 并发送文件消息 |
-| 18 | audio marker（存在文件） | `[DINGTALK_AUDIO]{"path":"/tmp/audio.mp3"}[/DINGTALK_AUDIO]` | 标记被移除；触发 `media/upload&type=voice` 并发送语音消息 |
+| 序号 | 场景                       | 输入                                                                                             | 期望                                                      |
+| ---- | -------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| 16   | video marker（文件不存在） | `hello [DINGTALK_VIDEO]{"path":"/tmp/video.mp4"}[/DINGTALK_VIDEO] world`                         | 标记被移除；返回内容包含原文本并给出告警/提示             |
+| 17   | file marker（存在文件）    | `[DINGTALK_FILE]{"path":"/tmp/file.pdf","fileName":"file.pdf","fileType":"pdf"}[/DINGTALK_FILE]` | 标记被移除；触发 `media/upload&type=file` 并发送文件消息  |
+| 18   | audio marker（存在文件）   | `[DINGTALK_AUDIO]{"path":"/tmp/audio.mp3"}[/DINGTALK_AUDIO]`                                     | 标记被移除；触发 `media/upload&type=voice` 并发送语音消息 |
 
 ## 3. 预期正确输出与潜在错误
 
 - **正确**：上传失败/异常均返回 null 并记录日志；多媒体类型分支覆盖；视频相关函数在缺少外部依赖时仍可运行（返回默认结果）；marker 处理对不存在文件有明确提示或安全回退。
 - **潜在错误原因**：错误地把 errcode 判定当成功；maxSize 单位或比较错误；未处理 fs/stat 异常；视频工具链缺失导致抛异常；marker JSON/格式解析不一致导致误替换。
-

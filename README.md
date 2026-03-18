@@ -1,4 +1,5 @@
-# Offical DingTalk OpenClaw Connector 
+# Offical DingTalk OpenClaw Connector
+
 ## 钉钉官方OpenClaw连接器
 
 以下提供两种方案连接到 [OpenClaw](https://openclaw.ai) Gateway，分别是钉钉机器人和钉钉 DEAP Agent。
@@ -7,12 +8,13 @@
 
 ## 快速导航
 
-| 方案 | 名称 | 详情 |
-|------|------|------|
-| 方案一 | 钉钉机器人集成 | [查看详情](#方案一钉钉机器人集成) |
+| 方案   | 名称                 | 详情                                    |
+| ------ | -------------------- | --------------------------------------- |
+| 方案一 | 钉钉机器人集成       | [查看详情](#方案一钉钉机器人集成)       |
 | 方案二 | 钉钉 DEAP Agent 集成 | [查看详情](#方案二钉钉-deap-agent-集成) |
 
 # 方案一：钉钉机器人集成
+
 将钉钉机器人连接到 [OpenClaw](https://openclaw.ai) Gateway，支持 AI Card 流式响应和会话管理。
 
 ## 特性
@@ -31,7 +33,6 @@
 - ✅ **多 Agent 路由** - 支持一个连接器实例连接多个 Agent，多个钉钉机器人可分别绑定到不同 Agent，实现角色分工和专业化服务
 - ✅ **Markdown 表格转换** - 自动将 Markdown 表格转换为钉钉支持的文本格式，提升消息可读性
 - ✅ **异步模式** - 立即回执用户消息，后台处理任务，然后主动推送最终结果作为独立消息（可选）
-
 
 ## 架构
 
@@ -84,22 +85,22 @@ openclaw plugins install -l .
 
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
-      "enabled": true,
-      "gatewayBaseUrl": "http://localhost:18789", // 可选：如果Gateway地址是TLS/HTTPS，see PR #117
-      "clientId": "dingxxxxxxxxx",       // 钉钉 AppKey
-      "clientSecret": "your_secret_here", // 钉钉 AppSecret
-      "gatewayToken": "",                 // 可选：Gateway 认证 token, openclaw.json配置中 gateway.auth.token 的值 
-      "gatewayPassword": "",              // 可选：Gateway 认证 password（与 token 二选一）
-      "sessionTimeout": 1800000,          // ⚠️ 已废弃，请使用 Gateway 的 session.reset.idleMinutes 配置
-      "separateSessionByConversation": true,  // 可选：是否按单聊/群聊/群区分 session（默认：true）
-      "groupSessionScope": "group",       // 可选：群聊会话隔离策略，group=群共享，group_sender=群内用户独立（默认：group）
-      "sharedMemoryAcrossConversations": false, // 可选：是否在不同会话间共享记忆；false 时群聊与私聊、不同群记忆隔离（默认：false）
-      "asyncMode": false,                 // 可选：异步模式，立即回执用户消息，后台处理并推送结果（默认：false）
-      "ackText": "🫡 任务已接收"      // 可选：异步模式下的回执消息文本（默认：'🫡 任务已接收，处理中...'）
-    }
-  }
+      enabled: true,
+      gatewayBaseUrl: "http://localhost:18789", // 可选：如果Gateway地址是TLS/HTTPS，see PR #117
+      clientId: "dingxxxxxxxxx", // 钉钉 AppKey
+      clientSecret: "your_secret_here", // 钉钉 AppSecret
+      gatewayToken: "", // 可选：Gateway 认证 token, openclaw.json配置中 gateway.auth.token 的值
+      gatewayPassword: "", // 可选：Gateway 认证 password（与 token 二选一）
+      sessionTimeout: 1800000, // ⚠️ 已废弃，请使用 Gateway 的 session.reset.idleMinutes 配置
+      separateSessionByConversation: true, // 可选：是否按单聊/群聊/群区分 session（默认：true）
+      groupSessionScope: "group", // 可选：群聊会话隔离策略，group=群共享，group_sender=群内用户独立（默认：group）
+      sharedMemoryAcrossConversations: false, // 可选：是否在不同会话间共享记忆；false 时群聊与私聊、不同群记忆隔离（默认：false）
+      asyncMode: false, // 可选：异步模式，立即回执用户消息，后台处理并推送结果（默认：false）
+      ackText: "🫡 任务已接收", // 可选：异步模式下的回执消息文本（默认：'🫡 任务已接收，处理中...'）
+    },
+  },
 }
 ```
 
@@ -108,7 +109,6 @@ openclaw plugins install -l .
 ```bash
 openclaw config set gateway.http.endpoints.chatCompletions.enabled true
 ```
-
 
 或者在 OpenClaw Dashboard 页面配置：
 
@@ -139,18 +139,21 @@ openclaw plugins list  # 确认 dingtalk-connector 已加载
 
 ## 配置参考
 
-| 配置项 | 环境变量 | 说明 |
-|--------|----------|------|
-| `clientId` | `DINGTALK_CLIENT_ID` | 上一步创建openclaw机器人给到的 clinetId |
-| `clientSecret` | `DINGTALK_CLIENT_SECRET` | 上一步创建openclaw机器人给到的 clientSecret |
-| `gatewayToken` | `OPENCLAW_GATEWAY_TOKEN` | Gateway 认证 token（可选） |
-| `gatewayPassword` | — | Gateway 认证 password（可选，与 token 二选一） |
-| `sessionTimeout` | — | ⚠️ 已废弃，请使用 Gateway 的 [`session.reset.idleMinutes`](https://docs.openclaw.ai/gateway/configuration) 配置 |
-| `separateSessionByConversation` | — | 是否按单聊/群聊/群区分 session（默认：true） |
-| `groupSessionScope` | — | 群聊会话隔离策略（仅当 separateSessionByConversation=true 时生效）：`group`=群共享，`group_sender`=群内用户独立（默认：group） |
-| `sharedMemoryAcrossConversations` | — | 是否在不同会话间共享记忆；false 时群聊与私聊、不同群记忆隔离（默认：false） |
-| `asyncMode` | — | 异步模式，立即回执用户消息，后台处理并推送结果（默认：false） |
-| `ackText` | — | 异步模式下的回执消息文本（默认：'🫡 任务已接收，处理中...'） |
+| 配置项                            | 环境变量                 | 说明                                                                                                                           |
+| --------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `clientId`                        | `DINGTALK_CLIENT_ID`     | 上一步创建openclaw机器人给到的 clinetId                                                                                        |
+| `clientSecret`                    | `DINGTALK_CLIENT_SECRET` | 上一步创建openclaw机器人给到的 clientSecret                                                                                    |
+| `gatewayToken`                    | `OPENCLAW_GATEWAY_TOKEN` | Gateway 认证 token（可选）                                                                                                     |
+| `gatewayPassword`                 | —                        | Gateway 认证 password（可选，与 token 二选一）                                                                                 |
+| `sessionTimeout`                  | —                        | ⚠️ 已废弃，请使用 Gateway 的 [`session.reset.idleMinutes`](https://docs.openclaw.ai/gateway/configuration) 配置                |
+| `separateSessionByConversation`   | —                        | 是否按单聊/群聊/群区分 session（默认：true）                                                                                   |
+| `groupSessionScope`               | —                        | 群聊会话隔离策略（仅当 separateSessionByConversation=true 时生效）：`group`=群共享，`group_sender`=群内用户独立（默认：group） |
+| `sharedMemoryAcrossConversations` | —                        | 是否在不同会话间共享记忆；false 时群聊与私聊、不同群记忆隔离（默认：false）                                                    |
+| `dmPolicy`                        | —                        | 单聊访问策略：`open`=所有人可用，`allowlist`=仅白名单用户（默认：open）                                                        |
+| `groupPolicy`                     | —                        | 群聊访问策略：`open`=所有人可用，`allowlist`=仅白名单用户（默认：open）                                                        |
+| `allowFrom`                       | —                        | 白名单用户 ID 列表（staffId），`dmPolicy` 或 `groupPolicy` 为 `allowlist` 时生效                                               |
+| `asyncMode`                       | —                        | 异步模式，立即回执用户消息，后台处理并推送结果（默认：false）                                                                  |
+| `ackText`                         | —                        | 异步模式下的回执消息文本（默认：'🫡 任务已接收，处理中...'）                                                                   |
 
 ## 会话与记忆隔离
 
@@ -181,6 +184,50 @@ openclaw plugins list  # 确认 dingtalk-connector 已加载
 - ✅ 群内每个用户独立对话（设置 `groupSessionScope: "group_sender"`）
 - ✅ 需要跨会话共享记忆时，可设置 `sharedMemoryAcrossConversations: true`
 
+## 访问控制（白名单）
+
+连接器支持对单聊和群聊分别配置白名单策略，只允许特定用户的消息被处理。
+
+### 单聊白名单（dmPolicy）
+
+设置 `dmPolicy: 'allowlist'` 后，只有 `allowFrom` 列表中的用户发送的私信才会被处理，其他人的消息会被静默拦截。
+
+### 群聊白名单（groupPolicy）
+
+设置 `groupPolicy: 'allowlist'` 后，群聊中只有 `allowFrom` 列表中的用户 @ 机器人的消息才会被处理，不在白名单的用户即使 @ 机器人也会被静默拦截。
+
+### 配置示例
+
+```json5
+{
+  channels: {
+    "dingtalk-connector": {
+      enabled: true,
+      clientId: "dingxxxxxxxxx",
+      clientSecret: "your_secret_here",
+      dmPolicy: "allowlist", // 单聊：仅白名单用户
+      groupPolicy: "allowlist", // 群聊：仅白名单用户
+      allowFrom: [
+        // 共享的白名单（staffId 列表）
+        "user_staff_id_1",
+        "user_staff_id_2",
+      ],
+    },
+  },
+}
+```
+
+> **说明**：`dmPolicy` 和 `groupPolicy` 共享同一个 `allowFrom` 列表。用户的 staffId 可在钉钉开放平台的用户管理页面查询，或通过 `senderId` 日志获取。
+
+### 使用命令管理白名单
+
+也可以通过 OpenClaw 命令动态管理白名单：
+
+```bash
+# 允许某个用户（单聊和群聊共用）
+/allow dingtalk-connector:<userId>
+```
+
 ## 异步模式
 
 异步模式允许连接器立即回执用户消息，然后在后台处理任务，最后主动推送最终结果作为独立消息。这种模式特别适合处理耗时较长的任务，可以给用户更好的交互体验。
@@ -191,15 +238,15 @@ openclaw plugins list  # 确认 dingtalk-connector 已加载
 
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
-      "enabled": true,
-      "clientId": "dingxxxxxxxxx",
-      "clientSecret": "your_secret_here",
-      "asyncMode": true,              // 启用异步模式
-      "ackText": "🫡 任务已接收"  // 可选：自定义回执消息
-    }
-  }
+      enabled: true,
+      clientId: "dingxxxxxxxxx",
+      clientSecret: "your_secret_here",
+      asyncMode: true, // 启用异步模式
+      ackText: "🫡 任务已接收", // 可选：自定义回执消息
+    },
+  },
 }
 ```
 
@@ -231,39 +278,39 @@ openclaw plugins list  # 确认 dingtalk-connector 已加载
 
 ```json5
 {
-  "channels": {
+  channels: {
     "dingtalk-connector": {
-      "enabled": true,
-      "accounts": {
-        "bot1": {
-          "enabled": true,
-          "clientId": "ding_bot1_app_key",
-          "clientSecret": "bot1_secret"
+      enabled: true,
+      accounts: {
+        bot1: {
+          enabled: true,
+          clientId: "ding_bot1_app_key",
+          clientSecret: "bot1_secret",
         },
-        "bot2": {
-          "enabled": true,
-          "clientId": "ding_bot2_app_key",
-          "clientSecret": "bot2_secret"
-        }
-      }
-    }
+        bot2: {
+          enabled: true,
+          clientId: "ding_bot2_app_key",
+          clientSecret: "bot2_secret",
+        },
+      },
+    },
   },
-  "bindings": [
+  bindings: [
     {
-      "agentId": "ding-bot1",
-      "match": {
-        "channel": "dingtalk-connector",
-        "accountId": "bot1"
-      }
+      agentId: "ding-bot1",
+      match: {
+        channel: "dingtalk-connector",
+        accountId: "bot1",
+      },
     },
     {
-      "agentId": "ding-bot2",
-      "match": {
-        "channel": "dingtalk-connector",
-        "accountId": "bot2"
-      }
-    }
-  ]
+      agentId: "ding-bot2",
+      match: {
+        channel: "dingtalk-connector",
+        accountId: "bot2",
+      },
+    },
+  ],
 }
 ```
 
@@ -279,57 +326,57 @@ openclaw plugins list  # 确认 dingtalk-connector 已加载
 
 ```json5
 {
-  "bindings": [
+  bindings: [
     // 场景1：特定用户的单聊 → main agent（完整功能）
     {
-      "agentId": "main",
-      "match": {
-        "channel": "dingtalk-connector",
-        "peer": {
-          "kind": "direct",
-          "id": "YOUR_VIP_USER_ID"
-        }
-      }
+      agentId: "main",
+      match: {
+        channel: "dingtalk-connector",
+        peer: {
+          kind: "direct",
+          id: "YOUR_VIP_USER_ID",
+        },
+      },
     },
     // 场景2：所有群聊 → guest agent（受限功能）
     {
-      "agentId": "guest",
-      "match": {
-        "channel": "dingtalk-connector",
-        "peer": {
-          "kind": "group",
-          "id": "*"
-        }
-      }
+      agentId: "guest",
+      match: {
+        channel: "dingtalk-connector",
+        peer: {
+          kind: "group",
+          id: "*",
+        },
+      },
     },
     // 场景3：其他单聊 → guest agent（受限功能）
     {
-      "agentId": "guest",
-      "match": {
-        "channel": "dingtalk-connector",
-        "peer": {
-          "kind": "direct",
-          "id": "*"
-        }
-      }
-    }
-  ]
+      agentId: "guest",
+      match: {
+        channel: "dingtalk-connector",
+        peer: {
+          kind: "direct",
+          id: "*",
+        },
+      },
+    },
+  ],
 }
 ```
 
 #### peer.kind 配置说明
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
+| 字段        | 类型                    | 说明                                          |
+| ----------- | ----------------------- | --------------------------------------------- |
 | `peer.kind` | `'direct'` \| `'group'` | 会话类型：`direct` 表示单聊，`group` 表示群聊 |
-| `peer.id` | `string` | 发送者 ID（单聊）或 `*` 通配符匹配所有 |
+| `peer.id`   | `string`                | 发送者 ID（单聊）或 `*` 通配符匹配所有        |
 
 #### 匹配优先级
 
 bindings 按以下优先级匹配（从高到低）：
 
 1. **peer.kind + peer.id 精确匹配**：指定会话类型和具体用户 ID
-2. **peer.kind + peer.id='*' 通配匹配**：指定会话类型，匹配所有用户
+2. **peer.kind + peer.id='\*' 通配匹配**：指定会话类型，匹配所有用户
 3. **仅 peer.kind 匹配**：只指定会话类型（无 peer.id）
 4. **accountId 匹配**：按钉钉账号路由
 5. **channel 匹配**：仅指定 channel
@@ -340,7 +387,6 @@ bindings 按以下优先级匹配（从高到低）：
 详细的配置指南和架构说明，请参考 OpenClaw 官方文档：
 
 - [OpenClaw 多 Agent 架构配置指南](https://gist.github.com/smallnest/c5c13482740fd179e40070e620f66a52)
-
 
 ## 会话命令
 
@@ -381,16 +427,17 @@ ls -la ~/.openclaw/workspace/media/inbound/
 
 ### 支持的文件类型
 
-| 文件类型 | 处理方式 | 说明 |
-|---------|---------|------|
-| `.docx` | 通过 `mammoth` 解析 | 提取 Word 文档中的文本内容，注入到 AI 上下文 |
-| `.pdf` | 通过 `pdf-parse` 解析 | 提取 PDF 文档中的文本内容，注入到 AI 上下文 |
-| `.txt`、`.md`、`.json` 等 | 直接读取 | 纯文本文件内容直接读取并注入到消息中 |
-| `.xlsx`、`.pptx`、`.zip` 等 | 保存到磁盘 | 二进制文件保存到磁盘，文件路径和名称会在消息中报告 |
+| 文件类型                    | 处理方式              | 说明                                               |
+| --------------------------- | --------------------- | -------------------------------------------------- |
+| `.docx`                     | 通过 `mammoth` 解析   | 提取 Word 文档中的文本内容，注入到 AI 上下文       |
+| `.pdf`                      | 通过 `pdf-parse` 解析 | 提取 PDF 文档中的文本内容，注入到 AI 上下文        |
+| `.txt`、`.md`、`.json` 等   | 直接读取              | 纯文本文件内容直接读取并注入到消息中               |
+| `.xlsx`、`.pptx`、`.zip` 等 | 保存到磁盘            | 二进制文件保存到磁盘，文件路径和名称会在消息中报告 |
 
 ### 使用方式
 
 直接在钉钉中发送文件附件，连接器会自动：
+
 1. 下载文件到本地
 2. 根据文件类型进行解析或保存
 3. 将文本内容注入到 AI 对话上下文中
@@ -402,36 +449,40 @@ ls -la ~/.openclaw/workspace/media/inbound/
 ### 创建文档
 
 ```javascript
-dingtalk-connector.docs.create({
-  spaceId: "your-space-id",
-  title: "测试文档",
-  content: "# 测试内容"
-})
+dingtalk -
+  connector.docs.create({
+    spaceId: "your-space-id",
+    title: "测试文档",
+    content: "# 测试内容",
+  });
 ```
 
 ### 追加内容
 
 ```javascript
-dingtalk-connector.docs.append({
-  docId: "your-doc-id",
-  markdownContent: "\n## 追加的内容"
-})
+dingtalk -
+  connector.docs.append({
+    docId: "your-doc-id",
+    markdownContent: "\n## 追加的内容",
+  });
 ```
 
 ### 搜索文档
 
 ```javascript
-dingtalk-connector.docs.search({
-  keyword: "搜索关键词"
-})
+dingtalk -
+  connector.docs.search({
+    keyword: "搜索关键词",
+  });
 ```
 
 ### 列举文档
 
 ```javascript
-dingtalk-connector.docs.list({
-  spaceId: "your-space-id"
-})
+dingtalk -
+  connector.docs.list({
+    spaceId: "your-space-id",
+  });
 ```
 
 ## 多 Agent 路由支持
@@ -462,15 +513,16 @@ dingtalk-openclaw-connector/
 
 ```json5
 {
-  "gateway": { // gateway通常是已有的节点，配置时注意把http部分追加到已有节点下
-    "http": {
-      "endpoints": {
-        "chatCompletions": {
-          "enabled": true
-        }
-      }
-    }
-  }
+  gateway: {
+    // gateway通常是已有的节点，配置时注意把http部分追加到已有节点下
+    http: {
+      endpoints: {
+        chatCompletions: {
+          enabled: true,
+        },
+      },
+    },
+  },
 }
 ```
 
@@ -539,12 +591,12 @@ openclaw plugins install @dingtalk-real-ai/dingtalk-connector
 
 ## 依赖
 
-| 包 | 用途 |
-|----|------|
+| 包                | 用途                   |
+| ----------------- | ---------------------- |
 | `dingtalk-stream` | 钉钉 Stream 协议客户端 |
-| `axios` | HTTP 客户端 |
-| `mammoth` | Word 文档（.docx）解析 |
-| `pdf-parse` | PDF 文档解析 |
+| `axios`           | HTTP 客户端            |
+| `mammoth`         | Word 文档（.docx）解析 |
+| `pdf-parse`       | PDF 文档解析           |
 
 ### Q: Stream 客户端连接 400 错误
 
@@ -552,21 +604,23 @@ openclaw plugins install @dingtalk-real-ai/dingtalk-connector
 
 **常见原因：**
 
-| 原因 | 排查方法 |
-|------|----------|
-| **应用未发布** | 钉钉开放平台 → 应用 → 版本管理 → 确认已发布 |
-| **凭证错误** | 检查 `clientId`/`clientSecret` 是否有空格或换行 |
-| **非 Stream 模式** | 确认机器人消息接收模式为 **Stream 模式** |
-| **IP 白名单限制** | 检查应用是否设置了 IP 白名单 |
+| 原因               | 排查方法                                        |
+| ------------------ | ----------------------------------------------- |
+| **应用未发布**     | 钉钉开放平台 → 应用 → 版本管理 → 确认已发布     |
+| **凭证错误**       | 检查 `clientId`/`clientSecret` 是否有空格或换行 |
+| **非 Stream 模式** | 确认机器人消息接收模式为 **Stream 模式**        |
+| **IP 白名单限制**  | 检查应用是否设置了 IP 白名单                    |
 
 **排查步骤：**
 
 1. **验证凭证有效性**
+
    ```bash
    curl -X POST "https://api.dingtalk.com/v1.0/oauth2/accessToken" \
      -H "Content-Type: application/json" \
      -d '{"appKey": "你的clientId", "appSecret": "你的clientSecret"}'
    ```
+
    - 返回 `accessToken` → 凭证正确
    - 返回 `400`/`invalid` → 凭证错误或应用未发布
 
@@ -577,7 +631,6 @@ openclaw plugins install @dingtalk-real-ai/dingtalk-connector
 
 3. **重新发布应用**
    - 修改任何配置后，必须点击 **保存** → **发布**
-
 
 # 方案二：钉钉 DEAP Agent 集成
 
@@ -602,12 +655,12 @@ graph LR
     subgraph "钉钉 App"
         A["用户与 Agent 对话"] --> B["DEAP Agent"]
     end
-    
+
     subgraph "本地环境"
         D["DingTalk OpenClaw Connector"] --> C["OpenClaw Gateway"]
         C --> E["PC 操作执行"]
     end
-    
+
     B -.-> D
 ```
 
@@ -670,11 +723,11 @@ openclaw gateway start
 
 3. 配置技能参数：
 
-   | 参数 | 来源 | 说明 |
-   |------|------|------|
-   | apikey | 第二步获取 | DEAP 平台 API Key |
-   | apihost | 默认值 | 通常为 `127.0.0.1:18789`，在Windows环境下可能需要配置为 `localhost:18789` 才能正常工作 |
-   | gatewayToken | 第一步获取 | Gateway 配置的认证令牌 |
+   | 参数         | 来源       | 说明                                                                                   |
+   | ------------ | ---------- | -------------------------------------------------------------------------------------- |
+   | apikey       | 第二步获取 | DEAP 平台 API Key                                                                      |
+   | apihost      | 默认值     | 通常为 `127.0.0.1:18789`，在Windows环境下可能需要配置为 `localhost:18789` 才能正常工作 |
+   | gatewayToken | 第一步获取 | Gateway 配置的认证令牌                                                                 |
 
    <img width="3426" height="1752" alt="配置 OpenClaw 技能参数" src="https://github.com/user-attachments/assets/bc725789-382f-41b5-bbdb-ba8f29923d5c" />
 
