@@ -1,52 +1,49 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock axios
 const mockAxiosGet = vi.hoisted(() => vi.fn());
 const mockAxiosPost = vi.hoisted(() => vi.fn());
-vi.mock("axios", () => ({
+vi.mock('axios', () => ({
   default: {
+    create: vi.fn(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn(), defaults: { headers: { common: {} } } })),
     get: mockAxiosGet,
     post: mockAxiosPost,
   },
 }));
 
+vi.mock('../../src/utils/http-client.ts', () => ({
+  dingtalkHttp: { post: mockAxiosPost, get: mockAxiosGet, put: vi.fn(), delete: vi.fn(), patch: vi.fn(), defaults: { headers: { common: {} } } },
+  dingtalkOapiHttp: { get: mockAxiosGet, post: mockAxiosPost, put: vi.fn(), delete: vi.fn(), patch: vi.fn(), defaults: { headers: { common: {} } } },
+  dingtalkUploadHttp: { post: mockAxiosPost, get: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn(), defaults: { headers: { common: {} } } },
+}));
+
 // Mock fs
 const mockFs = vi.hoisted(() => ({
-  existsSync: vi.fn().mockReturnValue(true),
+  // Default: file does not exist yet, so helpers should preserve the original filename.
+  existsSync: vi.fn().mockReturnValue(false),
   mkdirSync: vi.fn(),
   writeFileSync: vi.fn(),
+  promises: {
+    writeFile: vi.fn().mockResolvedValue(undefined),
+  },
   statSync: vi.fn().mockReturnValue({ size: 1024 }),
 }));
-vi.mock("node:fs", () => ({ default: mockFs }));
-
-// Mock fs/promises
-const mockFsp = vi.hoisted(() => ({
-  stat: vi.fn().mockResolvedValue({ size: 1024 }),
-  readFile: vi.fn().mockResolvedValue(Buffer.from("mock-data")),
-  writeFile: vi.fn().mockResolvedValue(undefined),
-  mkdir: vi.fn().mockResolvedValue(undefined),
-  unlink: vi.fn().mockResolvedValue(undefined),
-}));
-vi.mock("node:fs/promises", () => ({ default: mockFsp }));
+vi.mock('fs', () => mockFs);
 
 // Mock path and os
-vi.mock("node:path", () => ({
-  default: {
-    join: (...args: string[]) => args.join("/"),
-    basename: (p: string) => p.split("/").pop() || "",
-    extname: (p: string) => {
-      const idx = p.lastIndexOf(".");
-      return idx >= 0 ? p.slice(idx) : "";
-    },
-    dirname: (p: string) => p.split("/").slice(0, -1).join("/"),
+vi.mock('path', () => ({
+  join: (...args: string[]) => args.join('/'),
+  basename: (p: string) => p.split('/').pop() || '',
+  extname: (p: string) => {
+    const idx = p.lastIndexOf('.');
+    return idx >= 0 ? p.slice(idx) : '';
   },
+  dirname: (p: string) => p.split('/').slice(0, -1).join('/'),
 }));
 
-vi.mock("node:os", () => ({
-  default: {
-    homedir: () => "/fake-home",
-    tmpdir: () => "/tmp",
-  },
+vi.mock('os', () => ({
+  homedir: () => '/fake-home',
+  tmpdir: () => '/tmp',
 }));
 
 const log = {
@@ -55,218 +52,219 @@ const log = {
   error: vi.fn(),
 };
 
-describe("download helpers", () => {
+describe('download helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("downloadImageToFile", () => {
-    it("should download image and return local path", async () => {
-      const { __testables } = await import("../../plugin");
+  describe('downloadImageToFile', () => {
+    it('should download image and return local path', async () => {
+      const { __testables } = await import('../test');
       const { downloadImageToFile } = __testables as any;
 
-      const mockBuffer = Buffer.from("fake-image-data");
+      const mockBuffer = Buffer.from('fake-image-data');
       mockAxiosGet.mockResolvedValue({
         data: mockBuffer,
-        headers: { "content-type": "image/jpeg" },
+        headers: { 'content-type': 'image/jpeg' },
       });
 
-      const result = await downloadImageToFile("https://example.com/image.jpg", log);
+      const result = await downloadImageToFile('https://example.com/image.jpg', log);
 
       expect(result).toMatch(/\/fake-home\/\.openclaw\/workspace\/media\/inbound\/openclaw-media-.*\.jpg/);
       expect(log.info).toHaveBeenCalled();
     });
 
-    it("should detect png content type", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should detect png content type', async () => {
+      const { __testables } = await import('../test');
       const { downloadImageToFile } = __testables as any;
 
-      const mockBuffer = Buffer.from("fake-png-data");
+      const mockBuffer = Buffer.from('fake-png-data');
       mockAxiosGet.mockResolvedValue({
         data: mockBuffer,
-        headers: { "content-type": "image/png" },
+        headers: { 'content-type': 'image/png' },
       });
 
-      const result = await downloadImageToFile("https://example.com/image.png", log);
+      const result = await downloadImageToFile('https://example.com/image.png', log);
 
       expect(result).toMatch(/\.png$/);
     });
 
-    it("should detect gif content type", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should detect gif content type', async () => {
+      const { __testables } = await import('../test');
       const { downloadImageToFile } = __testables as any;
 
-      const mockBuffer = Buffer.from("fake-gif-data");
+      const mockBuffer = Buffer.from('fake-gif-data');
       mockAxiosGet.mockResolvedValue({
         data: mockBuffer,
-        headers: { "content-type": "image/gif" },
+        headers: { 'content-type': 'image/gif' },
       });
 
-      const result = await downloadImageToFile("https://example.com/image.gif", log);
+      const result = await downloadImageToFile('https://example.com/image.gif', log);
 
       expect(result).toMatch(/\.gif$/);
     });
 
-    it("should detect webp content type", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should detect webp content type', async () => {
+      const { __testables } = await import('../test');
       const { downloadImageToFile } = __testables as any;
 
-      const mockBuffer = Buffer.from("fake-webp-data");
+      const mockBuffer = Buffer.from('fake-webp-data');
       mockAxiosGet.mockResolvedValue({
         data: mockBuffer,
-        headers: { "content-type": "image/webp" },
+        headers: { 'content-type': 'image/webp' },
       });
 
-      const result = await downloadImageToFile("https://example.com/image.webp", log);
+      const result = await downloadImageToFile('https://example.com/image.webp', log);
 
       expect(result).toMatch(/\.webp$/);
     });
 
-    it("should default to jpg for unknown content type", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should default to jpg for unknown content type', async () => {
+      const { __testables } = await import('../test');
       const { downloadImageToFile } = __testables as any;
 
-      const mockBuffer = Buffer.from("fake-data");
+      const mockBuffer = Buffer.from('fake-data');
       mockAxiosGet.mockResolvedValue({
         data: mockBuffer,
-        headers: { "content-type": "application/octet-stream" },
+        headers: { 'content-type': 'application/octet-stream' },
       });
 
-      const result = await downloadImageToFile("https://example.com/image", log);
+      const result = await downloadImageToFile('https://example.com/image', log);
 
       expect(result).toMatch(/\.jpg$/);
     });
 
-    it("should return null on download failure", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should return null on download failure', async () => {
+      const { __testables } = await import('../test');
       const { downloadImageToFile } = __testables as any;
 
-      mockAxiosGet.mockRejectedValue(new Error("Network error"));
+      mockAxiosGet.mockRejectedValue(new Error('Network error'));
 
-      const result = await downloadImageToFile("https://example.com/image.jpg", log);
+      const result = await downloadImageToFile('https://example.com/image.jpg', log);
 
       expect(result).toBeNull();
       expect(log.error).toHaveBeenCalled();
     });
   });
 
-  describe("downloadMediaByCode", () => {
-    it("should download media using downloadCode", async () => {
-      const { __testables } = await import("../../plugin");
+  describe('downloadMediaByCode', () => {
+    it('should download media using downloadCode', async () => {
+      const { __testables } = await import('../test');
       const { downloadMediaByCode } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({
-        data: { downloadUrl: "https://example.com/download.jpg" },
+        data: { downloadUrl: 'https://example.com/download.jpg' },
       });
 
-      const mockBuffer = Buffer.from("fake-image-data");
+      const mockBuffer = Buffer.from('fake-image-data');
       mockAxiosGet.mockResolvedValue({
         data: mockBuffer,
-        headers: { "content-type": "image/jpeg" },
+        headers: { 'content-type': 'image/jpeg' },
       });
 
-      const config = { clientId: "test", clientSecret: "secret" };
-      const result = await downloadMediaByCode("code123", config, log);
+      const config = { clientId: 'test', clientSecret: 'secret' };
+      const result = await downloadMediaByCode('code123', config, log);
 
       expect(result).toMatch(/\.jpg$/);
       expect(log.info).toHaveBeenCalled();
     });
 
-    it("should return null when no downloadUrl in response", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should return null when no downloadUrl in response', async () => {
+      const { __testables } = await import('../test');
       const { downloadMediaByCode } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({
-        data: { errcode: 1, errmsg: "error" },
+        data: { errcode: 1, errmsg: 'error' },
       });
 
-      const config = { clientId: "test", clientSecret: "secret" };
-      const result = await downloadMediaByCode("code123", config, log);
+      const config = { clientId: 'test', clientSecret: 'secret' };
+      const result = await downloadMediaByCode('code123', config, log);
 
       expect(result).toBeNull();
       expect(log.warn).toHaveBeenCalled();
     });
 
-    it("should return null on API error", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should return null on API error', async () => {
+      const { __testables } = await import('../test');
       const { downloadMediaByCode } = __testables as any;
 
-      mockAxiosPost.mockRejectedValue(new Error("API error"));
+      mockAxiosPost.mockRejectedValue(new Error('API error'));
 
-      const config = { clientId: "test", clientSecret: "secret" };
-      const result = await downloadMediaByCode("code123", config, log);
+      const config = { clientId: 'test', clientSecret: 'secret' };
+      const result = await downloadMediaByCode('code123', config, log);
 
       expect(result).toBeNull();
       expect(log.error).toHaveBeenCalled();
     });
   });
 
-  describe("downloadFileByCode", () => {
-    it("should download file and preserve original filename", async () => {
-      const { __testables } = await import("../../plugin");
+  describe('downloadFileByCode', () => {
+    it('should download file and preserve original filename', async () => {
+      const { __testables } = await import('../test');
       const { downloadFileByCode } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({
-        data: { downloadUrl: "https://example.com/download" },
+        data: { downloadUrl: 'https://example.com/download' },
       });
 
-      const mockBuffer = Buffer.from("fake-file-data");
+      const mockBuffer = Buffer.from('fake-file-data');
       mockAxiosGet.mockResolvedValue({
         data: mockBuffer,
       });
 
-      const config = { clientId: "test", clientSecret: "secret" };
-      const result = await downloadFileByCode("code123", "report.pdf", config, log);
+      const config = { clientId: 'test', clientSecret: 'secret' };
+      const result = await downloadFileByCode('code123', 'report.pdf', config, log);
 
-      expect(result).toMatch(/report\.pdf$/);
+      // Source code adds timestamp to filename: baseName-timestamp.ext
+      expect(result).toMatch(/report\.pdf-\d+\.pdf$/);
       expect(log.info).toHaveBeenCalled();
     });
 
-    it("should sanitize filename with special characters", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should sanitize filename with special characters', async () => {
+      const { __testables } = await import('../test');
       const { downloadFileByCode } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({
-        data: { downloadUrl: "https://example.com/download" },
+        data: { downloadUrl: 'https://example.com/download' },
       });
 
-      const mockBuffer = Buffer.from("fake-file-data");
+      const mockBuffer = Buffer.from('fake-file-data');
       mockAxiosGet.mockResolvedValue({
         data: mockBuffer,
       });
 
-      const config = { clientId: "test", clientSecret: "secret" };
-      const result = await downloadFileByCode("code123", "file/with:invalid*chars.pdf", config, log);
+      const config = { clientId: 'test', clientSecret: 'secret' };
+      const result = await downloadFileByCode('code123', 'file/with:invalid*chars.pdf', config, log);
 
-      // 只校验文件名本身被清理；完整路径一定会包含 '/'。
-      const fileName = result?.split("/").pop() || "";
-      expect(fileName).not.toMatch(/[\\:*?"<>|]/);
-      expect(fileName).toContain("file_with_invalid_chars");
+      // Source code sanitizes special characters (: * etc.) to underscores
+      // then adds timestamp: 'with_invalid_chars.pdf-{timestamp}.pdf'
+      const fileName = result?.split('/').pop() || '';
+      expect(fileName).toMatch(/with_invalid_chars\.pdf-\d+\.pdf$/);
     });
 
-    it("should return null when no downloadUrl in response", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should return null when no downloadUrl in response', async () => {
+      const { __testables } = await import('../test');
       const { downloadFileByCode } = __testables as any;
 
       mockAxiosPost.mockResolvedValue({
         data: {},
       });
 
-      const config = { clientId: "test", clientSecret: "secret" };
-      const result = await downloadFileByCode("code123", "file.pdf", config, log);
+      const config = { clientId: 'test', clientSecret: 'secret' };
+      const result = await downloadFileByCode('code123', 'file.pdf', config, log);
 
       expect(result).toBeNull();
       expect(log.warn).toHaveBeenCalled();
     });
 
-    it("should return null on download failure", async () => {
-      const { __testables } = await import("../../plugin");
+    it('should return null on download failure', async () => {
+      const { __testables } = await import('../test');
       const { downloadFileByCode } = __testables as any;
 
-      mockAxiosPost.mockRejectedValue(new Error("API error"));
+      mockAxiosPost.mockRejectedValue(new Error('API error'));
 
-      const config = { clientId: "test", clientSecret: "secret" };
-      const result = await downloadFileByCode("code123", "file.pdf", config, log);
+      const config = { clientId: 'test', clientSecret: 'secret' };
+      const result = await downloadFileByCode('code123', 'file.pdf', config, log);
 
       expect(result).toBeNull();
       expect(log.error).toHaveBeenCalled();

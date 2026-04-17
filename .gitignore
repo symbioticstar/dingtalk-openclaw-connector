@@ -8,6 +8,7 @@ build/
 *.egg
 node_modules/
 package-lock.json
+coverage/
 
 # IDE
 .idea/
@@ -15,3 +16,6 @@ package-lock.json
 openclaw/
 .aone_copilot/
 AGENTS.md
+.DS_Store
+plans/
+scripts/
